@@ -48,8 +48,8 @@ using StaticArrays
         
         @test aspect_ratio ≈ 1.0 atol=1e-10
         
-        # Thin triangle
-        v3_thin = SVector(0.5, 0.01, 0.0)
+        # Thin triangle - create a truly thin triangle
+        v3_thin = SVector(0.05, 0.0, 0.0)  # Very close to base, creating thin triangle
         tri_thin = Triangle(v1, v2, v3_thin)
         aspect_ratio_thin = compute_aspect_ratio(tri_thin)
         

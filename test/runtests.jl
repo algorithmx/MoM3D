@@ -6,6 +6,7 @@ println("=" ^ 40)
 
 @testset "MoM3D.jl Tests" begin
     include("test_geometry.jl")
+    include("test_theoretical_validation.jl")
 end
 
 println("\nAll tests completed!")

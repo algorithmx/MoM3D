@@ -1,7 +1,24 @@
+"""
+Enhanced Sphere Scattering Example with Theoretical Validation
+
+This example demonstrates sphere mesh creation and quality analysis based on
+Gibson's "The Method of Moments in Electromagnetics" Sections 6.6.2 and 7.7.2.
+
+Theoretical Background:
+- Conducting sphere scattering is a canonical electromagnetic problem
+- Analytical solution available via Mie theory for validation
+- Gibson Section 7.7.2 describes 2-meter diameter sphere validation
+- Expected MoM accuracy: < 0.1 dB compared to Mie theory
+
+Key Requirements from Gibson Section 7.6.1:
+- Reasonable triangle aspect ratios (< 5.0 preferred)
+- Minimum angles > 10° for good matrix conditioning
+- Watertight mesh for MFIE applications (Section 7.6.2)
+"""
+
 using MoM3D
 using LinearAlgebra
 using StaticArrays
-using Plots
 
 function create_sphere_mesh(radius::Float64, n_theta::Int, n_phi::Int)
     vertices = SVector{3, Float64}[]
