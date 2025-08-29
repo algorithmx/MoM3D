@@ -1,0 +1,373 @@
+ Testing Running tests...
+Running MoM3D Test Suite
+========================================
+Solvers: gmres no-precond: Error During Test at /home/HwHiAiUser/Documents/MoM3D/test/test_solvers.jl:36
+  Got exception outside of a @test
+  MethodError: no method matching gmres!(::Vector{ComplexF64}, ::Matrix{ComplexF64}, ::Vector{ComplexF64}; Pl::Nothing, rtol::Float64, maxiter::Int64, restart::Int64, log::Bool)
+  This error has been manually thrown, explicitly, so the method may exist but be intentionally marked as unimplemented.
+  
+  Closest candidates are:
+    gmres!(::Any, ::Any, ::Any; Pl, Pr, abstol, reltol, restart, maxiter, log, initially_zero, verbose, orth_meth) got unsupported keyword argument "rtol"
+     @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:184
+  
+  Stacktrace:
+    [1] kwerr(::@NamedTuple{Pl::Nothing, rtol::Float64, maxiter::Int64, restart::Int64, log::Bool}, ::Function, ::Vector{ComplexF64}, ::Matrix{ComplexF64}, ::Vector{ComplexF64})
+      @ Base ./error.jl:165
+    [2] solve_iterative(Z::Matrix{ComplexF64}, b::Vector{ComplexF64}, method::Symbol, tolerance::Float64, max_iterations::Int64; preconditioner::Symbol, Pl::Nothing, Pr::Nothing, restart::Int64, initial_guess::Nothing, return_report::Bool)
+      @ MoM3D.Solvers ~/Documents/MoM3D/src/solvers.jl:181
+    [3] solve_iterative
+      @ ~/Documents/MoM3D/src/solvers.jl:137 [inlined]
+    [4] #solve_mom_system#1
+      @ ~/Documents/MoM3D/src/solvers.jl:87 [inlined]
+    [5] macro expansion
+      @ ~/Documents/MoM3D/test/test_solvers.jl:38 [inlined]
+    [6] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+    [7] top-level scope
+      @ ~/Documents/MoM3D/test/test_solvers.jl:37
+    [8] include(fname::String)
+      @ Main ./sysimg.jl:38
+    [9] macro expansion
+      @ ~/Documents/MoM3D/test/runtests.jl:10 [inlined]
+   [10] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [11] top-level scope
+      @ ~/Documents/MoM3D/test/runtests.jl:8
+   [12] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [13] top-level scope
+      @ none:6
+  
+  caused by: MethodError: no method matching gmres!(::Vector{ComplexF64}, ::Matrix{ComplexF64}, ::Vector{ComplexF64}; Pl::Nothing, Pr::Nothing, rtol::Float64, maxiter::Int64, restart::Int64, log::Bool)
+  This error has been manually thrown, explicitly, so the method may exist but be intentionally marked as unimplemented.
+  
+  Closest candidates are:
+    gmres!(::Any, ::Any, ::Any; Pl, Pr, abstol, reltol, restart, maxiter, log, initially_zero, verbose, orth_meth) got unsupported keyword argument "rtol"
+     @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:184
+  
+  Stacktrace:
+    [1] kwerr(::@NamedTuple{Pl::Nothing, Pr::Nothing, rtol::Float64, maxiter::Int64, restart::Int64, log::Bool}, ::Function, ::Vector{ComplexF64}, ::Matrix{ComplexF64}, ::Vector{ComplexF64})
+      @ Base ./error.jl:165
+    [2] solve_iterative(Z::Matrix{ComplexF64}, b::Vector{ComplexF64}, method::Symbol, tolerance::Float64, max_iterations::Int64; preconditioner::Symbol, Pl::Nothing, Pr::Nothing, restart::Int64, initial_guess::Nothing, return_report::Bool)
+      @ MoM3D.Solvers ~/Documents/MoM3D/src/solvers.jl:178
+    [3] solve_iterative
+      @ ~/Documents/MoM3D/src/solvers.jl:137 [inlined]
+    [4] #solve_mom_system#1
+      @ ~/Documents/MoM3D/src/solvers.jl:87 [inlined]
+    [5] macro expansion
+      @ ~/Documents/MoM3D/test/test_solvers.jl:38 [inlined]
+    [6] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+    [7] top-level scope
+      @ ~/Documents/MoM3D/test/test_solvers.jl:37
+    [8] include(fname::String)
+      @ Main ./sysimg.jl:38
+    [9] macro expansion
+      @ ~/Documents/MoM3D/test/runtests.jl:10 [inlined]
+   [10] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [11] top-level scope
+      @ ~/Documents/MoM3D/test/runtests.jl:8
+   [12] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [13] top-level scope
+      @ none:6
+  
+  caused by: MethodError: no method matching ldiv!(::Nothing, ::SubArray{ComplexF64, 1, Matrix{ComplexF64}, Tuple{Base.Slice{Base.OneTo{Int64}}, Int64}, true})
+  The function `ldiv!` exists, but no method is defined for this combination of argument types.
+  
+  Closest candidates are:
+    ldiv!(::IterativeSolvers.Identity, ::Any)
+     @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/common.jl:31
+    ldiv!(::Diagonal, ::AbstractVecOrMat)
+     @ LinearAlgebra ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/LinearAlgebra/src/diagonal.jl:481
+    ldiv!(::BunchKaufman{T, <:StridedMatrix{T} where T}, ::StridedVecOrMat{T}) where T<:Union{ComplexF64, ComplexF32}
+     @ LinearAlgebra ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/LinearAlgebra/src/bunchkaufman.jl:376
+    ...
+  
+  Stacktrace:
+    [1] init!(arnoldi::IterativeSolvers.ArnoldiDecomp{ComplexF64, Matrix{ComplexF64}}, x::Vector{ComplexF64}, b::Vector{ComplexF64}, Pl::Nothing, Ax::Vector{ComplexF64}; initially_zero::Bool)
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:249
+    [2] gmres_iterable!(x::Vector{ComplexF64}, A::Matrix{ComplexF64}, b::Vector{ComplexF64}; Pl::Nothing, Pr::IterativeSolvers.Identity, abstol::Float64, reltol::Float64, restart::Int64, maxiter::Int64, initially_zero::Bool, orth_meth::IterativeSolvers.ModifiedGramSchmidt)
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:126
+    [3] gmres!(x::Vector{ComplexF64}, A::Matrix{ComplexF64}, b::Vector{ComplexF64}; Pl::Nothing, Pr::IterativeSolvers.Identity, abstol::Float64, reltol::Float64, restart::Int64, maxiter::Int64, log::Bool, initially_zero::Bool, verbose::Bool, orth_meth::IterativeSolvers.ModifiedGramSchmidt)
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:200
+    [4] gmres!
+      @ ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:184 [inlined]
+    [5] solve_iterative(Z::Matrix{ComplexF64}, b::Vector{ComplexF64}, method::Symbol, tolerance::Float64, max_iterations::Int64; preconditioner::Symbol, Pl::Nothing, Pr::Nothing, restart::Int64, initial_guess::Nothing, return_report::Bool)
+      @ MoM3D.Solvers ~/Documents/MoM3D/src/solvers.jl:173
+    [6] solve_iterative
+      @ ~/Documents/MoM3D/src/solvers.jl:137 [inlined]
+    [7] #solve_mom_system#1
+      @ ~/Documents/MoM3D/src/solvers.jl:87 [inlined]
+    [8] macro expansion
+      @ ~/Documents/MoM3D/test/test_solvers.jl:38 [inlined]
+    [9] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [10] top-level scope
+      @ ~/Documents/MoM3D/test/test_solvers.jl:37
+   [11] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [12] macro expansion
+      @ ~/Documents/MoM3D/test/runtests.jl:10 [inlined]
+   [13] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [14] top-level scope
+      @ ~/Documents/MoM3D/test/runtests.jl:8
+   [15] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [16] top-level scope
+      @ none:6
+  
+  caused by: MethodError: no method matching ldiv!(::Nothing, ::SubArray{ComplexF64, 1, Matrix{ComplexF64}, Tuple{Base.Slice{Base.OneTo{Int64}}, Int64}, true})
+  The function `ldiv!` exists, but no method is defined for this combination of argument types.
+  
+  Closest candidates are:
+    ldiv!(::IterativeSolvers.Identity, ::Any)
+     @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/common.jl:31
+    ldiv!(::Diagonal, ::AbstractVecOrMat)
+     @ LinearAlgebra ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/LinearAlgebra/src/diagonal.jl:481
+    ldiv!(::BunchKaufman{T, <:StridedMatrix{T} where T}, ::StridedVecOrMat{T}) where T<:Union{ComplexF64, ComplexF32}
+     @ LinearAlgebra ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/LinearAlgebra/src/bunchkaufman.jl:376
+    ...
+  
+  Stacktrace:
+    [1] init!(arnoldi::IterativeSolvers.ArnoldiDecomp{ComplexF64, Matrix{ComplexF64}}, x::Vector{ComplexF64}, b::Vector{ComplexF64}, Pl::Nothing, Ax::Vector{ComplexF64}; initially_zero::Bool)
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:249
+    [2] gmres_iterable!(x::Vector{ComplexF64}, A::Matrix{ComplexF64}, b::Vector{ComplexF64}; Pl::Nothing, Pr::Nothing, abstol::Float64, reltol::Float64, restart::Int64, maxiter::Int64, initially_zero::Bool, orth_meth::IterativeSolvers.ModifiedGramSchmidt)
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:126
+    [3] gmres!(x::Vector{ComplexF64}, A::Matrix{ComplexF64}, b::Vector{ComplexF64}; Pl::Nothing, Pr::Nothing, abstol::Float64, reltol::Float64, restart::Int64, maxiter::Int64, log::Bool, initially_zero::Bool, verbose::Bool, orth_meth::IterativeSolvers.ModifiedGramSchmidt)
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:200
+    [4] gmres!
+      @ ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:184 [inlined]
+    [5] solve_iterative(Z::Matrix{ComplexF64}, b::Vector{ComplexF64}, method::Symbol, tolerance::Float64, max_iterations::Int64; preconditioner::Symbol, Pl::Nothing, Pr::Nothing, restart::Int64, initial_guess::Nothing, return_report::Bool)
+      @ MoM3D.Solvers ~/Documents/MoM3D/src/solvers.jl:169
+    [6] solve_iterative
+      @ ~/Documents/MoM3D/src/solvers.jl:137 [inlined]
+    [7] #solve_mom_system#1
+      @ ~/Documents/MoM3D/src/solvers.jl:87 [inlined]
+    [8] macro expansion
+      @ ~/Documents/MoM3D/test/test_solvers.jl:38 [inlined]
+    [9] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [10] top-level scope
+      @ ~/Documents/MoM3D/test/test_solvers.jl:37
+   [11] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [12] macro expansion
+      @ ~/Documents/MoM3D/test/runtests.jl:10 [inlined]
+   [13] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [14] top-level scope
+      @ ~/Documents/MoM3D/test/runtests.jl:8
+   [15] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [16] top-level scope
+      @ none:6
+Solvers: gmres jacobi precond: Error During Test at /home/HwHiAiUser/Documents/MoM3D/test/test_solvers.jl:47
+  Got exception outside of a @test
+  MethodError: no method matching gmres!(::Vector{ComplexF64}, ::Matrix{ComplexF64}, ::Vector{ComplexF64}; Pl::Diagonal{ComplexF64, Vector{ComplexF64}}, rtol::Float64, maxiter::Int64, restart::Int64, log::Bool)
+  This error has been manually thrown, explicitly, so the method may exist but be intentionally marked as unimplemented.
+  
+  Closest candidates are:
+    gmres!(::Any, ::Any, ::Any; Pl, Pr, abstol, reltol, restart, maxiter, log, initially_zero, verbose, orth_meth) got unsupported keyword argument "rtol"
+     @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:184
+  
+  Stacktrace:
+    [1] kwerr(::@NamedTuple{Pl::Diagonal{ComplexF64, Vector{ComplexF64}}, rtol::Float64, maxiter::Int64, restart::Int64, log::Bool}, ::Function, ::Vector{ComplexF64}, ::Matrix{ComplexF64}, ::Vector{ComplexF64})
+      @ Base ./error.jl:165
+    [2] solve_iterative(Z::Matrix{ComplexF64}, b::Vector{ComplexF64}, method::Symbol, tolerance::Float64, max_iterations::Int64; preconditioner::Symbol, Pl::Nothing, Pr::Nothing, restart::Int64, initial_guess::Nothing, return_report::Bool)
+      @ MoM3D.Solvers ~/Documents/MoM3D/src/solvers.jl:181
+    [3] solve_iterative
+      @ ~/Documents/MoM3D/src/solvers.jl:137 [inlined]
+    [4] #solve_mom_system#1
+      @ ~/Documents/MoM3D/src/solvers.jl:87 [inlined]
+    [5] macro expansion
+      @ ~/Documents/MoM3D/test/test_solvers.jl:49 [inlined]
+    [6] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+    [7] top-level scope
+      @ ~/Documents/MoM3D/test/test_solvers.jl:48
+    [8] include(fname::String)
+      @ Main ./sysimg.jl:38
+    [9] macro expansion
+      @ ~/Documents/MoM3D/test/runtests.jl:10 [inlined]
+   [10] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [11] top-level scope
+      @ ~/Documents/MoM3D/test/runtests.jl:8
+   [12] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [13] top-level scope
+      @ none:6
+  
+  caused by: MethodError: no method matching gmres!(::Vector{ComplexF64}, ::Matrix{ComplexF64}, ::Vector{ComplexF64}; Pl::Diagonal{ComplexF64, Vector{ComplexF64}}, Pr::Nothing, rtol::Float64, maxiter::Int64, restart::Int64, log::Bool)
+  This error has been manually thrown, explicitly, so the method may exist but be intentionally marked as unimplemented.
+  
+  Closest candidates are:
+    gmres!(::Any, ::Any, ::Any; Pl, Pr, abstol, reltol, restart, maxiter, log, initially_zero, verbose, orth_meth) got unsupported keyword argument "rtol"
+     @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:184
+  
+  Stacktrace:
+    [1] kwerr(::@NamedTuple{Pl::Diagonal{ComplexF64, Vector{ComplexF64}}, Pr::Nothing, rtol::Float64, maxiter::Int64, restart::Int64, log::Bool}, ::Function, ::Vector{ComplexF64}, ::Matrix{ComplexF64}, ::Vector{ComplexF64})
+      @ Base ./error.jl:165
+    [2] solve_iterative(Z::Matrix{ComplexF64}, b::Vector{ComplexF64}, method::Symbol, tolerance::Float64, max_iterations::Int64; preconditioner::Symbol, Pl::Nothing, Pr::Nothing, restart::Int64, initial_guess::Nothing, return_report::Bool)
+      @ MoM3D.Solvers ~/Documents/MoM3D/src/solvers.jl:178
+    [3] solve_iterative
+      @ ~/Documents/MoM3D/src/solvers.jl:137 [inlined]
+    [4] #solve_mom_system#1
+      @ ~/Documents/MoM3D/src/solvers.jl:87 [inlined]
+    [5] macro expansion
+      @ ~/Documents/MoM3D/test/test_solvers.jl:49 [inlined]
+    [6] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+    [7] top-level scope
+      @ ~/Documents/MoM3D/test/test_solvers.jl:48
+    [8] include(fname::String)
+      @ Main ./sysimg.jl:38
+    [9] macro expansion
+      @ ~/Documents/MoM3D/test/runtests.jl:10 [inlined]
+   [10] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [11] top-level scope
+      @ ~/Documents/MoM3D/test/runtests.jl:8
+   [12] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [13] top-level scope
+      @ none:6
+  
+  caused by: BoundsError: attempt to access 40×1 Matrix{ComplexF64} at index [1:40, 2]
+  Stacktrace:
+    [1] throw_boundserror(A::Matrix{ComplexF64}, I::Tuple{Base.Slice{Base.OneTo{Int64}}, Int64})
+      @ Base ./essentials.jl:14
+    [2] checkbounds
+      @ ./abstractarray.jl:699 [inlined]
+    [3] view
+      @ ./subarray.jl:214 [inlined]
+    [4] expand!(arnoldi::IterativeSolvers.ArnoldiDecomp{ComplexF64, Matrix{ComplexF64}}, Pl::Diagonal{ComplexF64, Vector{ComplexF64}}, Pr::IterativeSolvers.Identity, k::Int64, Ax::Vector{ComplexF64})
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:292
+    [5] iterate(g::IterativeSolvers.GMRESIterable{Diagonal{ComplexF64, Vector{ComplexF64}}, IterativeSolvers.Identity, Vector{ComplexF64}, Vector{ComplexF64}, Vector{ComplexF64}, IterativeSolvers.ArnoldiDecomp{ComplexF64, Matrix{ComplexF64}}, IterativeSolvers.Residual{ComplexF64, Float64}, Float64, IterativeSolvers.ModifiedGramSchmidt}, iteration::Int64)
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:64
+    [6] iterate
+      @ ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:59 [inlined]
+    [7] iterate
+      @ ./iterators.jl:206 [inlined]
+    [8] iterate
+      @ ./iterators.jl:205 [inlined]
+    [9] gmres!(x::Vector{ComplexF64}, A::Matrix{ComplexF64}, b::Vector{ComplexF64}; Pl::Diagonal{ComplexF64, Vector{ComplexF64}}, Pr::IterativeSolvers.Identity, abstol::Float64, reltol::Float64, restart::Int64, maxiter::Int64, log::Bool, initially_zero::Bool, verbose::Bool, orth_meth::IterativeSolvers.ModifiedGramSchmidt)
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:207
+   [10] gmres!
+      @ ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:184 [inlined]
+   [11] solve_iterative(Z::Matrix{ComplexF64}, b::Vector{ComplexF64}, method::Symbol, tolerance::Float64, max_iterations::Int64; preconditioner::Symbol, Pl::Nothing, Pr::Nothing, restart::Int64, initial_guess::Nothing, return_report::Bool)
+      @ MoM3D.Solvers ~/Documents/MoM3D/src/solvers.jl:173
+   [12] solve_iterative
+      @ ~/Documents/MoM3D/src/solvers.jl:137 [inlined]
+   [13] #solve_mom_system#1
+      @ ~/Documents/MoM3D/src/solvers.jl:87 [inlined]
+   [14] macro expansion
+      @ ~/Documents/MoM3D/test/test_solvers.jl:49 [inlined]
+   [15] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [16] top-level scope
+      @ ~/Documents/MoM3D/test/test_solvers.jl:48
+   [17] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [18] macro expansion
+      @ ~/Documents/MoM3D/test/runtests.jl:10 [inlined]
+   [19] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [20] top-level scope
+      @ ~/Documents/MoM3D/test/runtests.jl:8
+   [21] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [22] top-level scope
+      @ none:6
+  
+  caused by: BoundsError: attempt to access 40×1 Matrix{ComplexF64} at index [1:40, 2]
+  Stacktrace:
+    [1] throw_boundserror(A::Matrix{ComplexF64}, I::Tuple{Base.Slice{Base.OneTo{Int64}}, Int64})
+      @ Base ./essentials.jl:14
+    [2] checkbounds
+      @ ./abstractarray.jl:699 [inlined]
+    [3] view
+      @ ./subarray.jl:214 [inlined]
+    [4] expand!(arnoldi::IterativeSolvers.ArnoldiDecomp{ComplexF64, Matrix{ComplexF64}}, Pl::Diagonal{ComplexF64, Vector{ComplexF64}}, Pr::Nothing, k::Int64, Ax::Vector{ComplexF64})
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:299
+    [5] iterate
+      @ ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:64 [inlined]
+    [6] iterate
+      @ ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:59 [inlined]
+    [7] iterate
+      @ ./iterators.jl:206 [inlined]
+    [8] iterate
+      @ ./iterators.jl:205 [inlined]
+    [9] gmres!(x::Vector{ComplexF64}, A::Matrix{ComplexF64}, b::Vector{ComplexF64}; Pl::Diagonal{ComplexF64, Vector{ComplexF64}}, Pr::Nothing, abstol::Float64, reltol::Float64, restart::Int64, maxiter::Int64, log::Bool, initially_zero::Bool, verbose::Bool, orth_meth::IterativeSolvers.ModifiedGramSchmidt)
+      @ IterativeSolvers ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:207
+   [10] gmres!
+      @ ~/.julia/packages/IterativeSolvers/bjiMt/src/gmres.jl:184 [inlined]
+   [11] solve_iterative(Z::Matrix{ComplexF64}, b::Vector{ComplexF64}, method::Symbol, tolerance::Float64, max_iterations::Int64; preconditioner::Symbol, Pl::Nothing, Pr::Nothing, restart::Int64, initial_guess::Nothing, return_report::Bool)
+      @ MoM3D.Solvers ~/Documents/MoM3D/src/solvers.jl:169
+   [12] solve_iterative
+      @ ~/Documents/MoM3D/src/solvers.jl:137 [inlined]
+   [13] #solve_mom_system#1
+      @ ~/Documents/MoM3D/src/solvers.jl:87 [inlined]
+   [14] macro expansion
+      @ ~/Documents/MoM3D/test/test_solvers.jl:49 [inlined]
+   [15] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [16] top-level scope
+      @ ~/Documents/MoM3D/test/test_solvers.jl:48
+   [17] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [18] macro expansion
+      @ ~/Documents/MoM3D/test/runtests.jl:10 [inlined]
+   [19] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [20] top-level scope
+      @ ~/Documents/MoM3D/test/runtests.jl:8
+   [21] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [22] top-level scope
+      @ none:6
+Solvers: bicgstab: Error During Test at /home/HwHiAiUser/Documents/MoM3D/test/test_solvers.jl:55
+  Got exception outside of a @test
+  UndefVarError: `hist` not defined in `MoM3D.Solvers`
+  Stacktrace:
+    [1] solve_iterative(Z::Matrix{ComplexF64}, b::Vector{ComplexF64}, method::Symbol, tolerance::Float64, max_iterations::Int64; preconditioner::Symbol, Pl::Nothing, Pr::Nothing, restart::Int64, initial_guess::Nothing, return_report::Bool)
+      @ MoM3D.Solvers ~/Documents/MoM3D/src/solvers.jl:198
+    [2] solve_iterative
+      @ ~/Documents/MoM3D/src/solvers.jl:137 [inlined]
+    [3] #solve_mom_system#1
+      @ ~/Documents/MoM3D/src/solvers.jl:87 [inlined]
+    [4] macro expansion
+      @ ~/Documents/MoM3D/test/test_solvers.jl:57 [inlined]
+    [5] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+    [6] top-level scope
+      @ ~/Documents/MoM3D/test/test_solvers.jl:56
+    [7] include(fname::String)
+      @ Main ./sysimg.jl:38
+    [8] macro expansion
+      @ ~/Documents/MoM3D/test/runtests.jl:10 [inlined]
+    [9] macro expansion
+      @ ~/.julia/juliaup/julia-1.11.6+0.aarch64.linux.gnu/share/julia/stdlib/v1.11/Test/src/Test.jl:1709 [inlined]
+   [10] top-level scope
+      @ ~/Documents/MoM3D/test/runtests.jl:8
+   [11] include(fname::String)
+      @ Main ./sysimg.jl:38
+   [12] top-level scope
+      @ none:6
+Test Summary:                                    | Pass  Error  Total     Time
+MoM3D.jl Tests                                   |   36      3     39  1m14.6s
+  Geometry Tests                                 |   19            19     8.6s
+  Theoretical Validation Tests (Gibson Document) |   14            14     0.3s
+  Solvers: direct                                |    1             1    18.2s
+  Solvers: gmres no-precond                      |           1      1    38.2s
+  Solvers: gmres jacobi precond                  |           1      1     3.4s
+  Solvers: bicgstab                              |           1      1     2.0s
+  Preconditioner construction                    |    2             2     0.2s
+ERROR: LoadError: Some tests did not pass: 36 passed, 0 failed, 3 errored, 0 broken.
+in expression starting at /home/HwHiAiUser/Documents/MoM3D/test/runtests.jl:7
+ERROR: Package MoM3D errored during testing
+
+(MoM3D) pkg> 
