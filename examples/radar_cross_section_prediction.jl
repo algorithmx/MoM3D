@@ -316,7 +316,7 @@ function demonstrate_rcs_prediction_workflow()
     """
     println("Radar Cross Section (RCS) Prediction using Method of Moments")
     println("Based on Gibson 'Method of Moments in Electromagnetics' Chapter 7")
-    println("=" ^ 70)
+    println(repeat("=", 70))
     
     # Create target meshes
     println("Creating canonical RCS targets...")
@@ -327,7 +327,7 @@ function demonstrate_rcs_prediction_workflow()
     
     # Analyze each target
     for (target_name, target_data) in targets
-        println("\n" * "="^60)
+    println("\n" * repeat("=", 60))
         
         # Create mesh
         mesh = Mesh3D(target_data.vertices, target_data.triangles)
@@ -340,7 +340,7 @@ function demonstrate_rcs_prediction_workflow()
     end
     
     # General MoM RCS workflow
-    println("\n" * "="^60)
+    println("\n" * repeat("=", 60))
     println("=== MoM RCS Calculation Workflow ===")
     
     println("\n1. Problem Setup:")

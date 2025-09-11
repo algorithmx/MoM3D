@@ -184,7 +184,7 @@ end
 
 function main()
     println("3D Method of Moments - Shape Processing Capabilities Test")
-    println("=" ^ 60)
+    println(repeat("=", 60))
     
     sphere_mesh = test_sphere_mesh_quality()
     plate_mesh = test_plate_mesh_quality()

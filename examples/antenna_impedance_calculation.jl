@@ -217,26 +217,26 @@ function demonstrate_dipole_impedance()
     for a wire dipole antenna impedance calculation.
     """
     println("Wire Dipole Antenna Impedance Analysis")
-    println("=" ^ 45)
+    println(repeat("=", 45))
     
     # Dipole parameters
-    length = 0.5  # meters (approximately λ/2 at 300 MHz)
+    dipole_length = 0.5  # meters (approximately λ/2 at 300 MHz)
     radius = 0.001  # meters (thin wire)
     n_segments = 20
     
     println("Dipole parameters:")
-    @printf "  Length: %.3f m\n" length
+    @printf "  Length: %.3f m\n" dipole_length
     @printf "  Radius: %.3f m\n" radius
     @printf "  Segments: %d\n" n_segments
     
     # Estimate resonant frequency
-    f_res, wavelength = estimate_resonant_frequency(length, "dipole")
+    f_res, wavelength = estimate_resonant_frequency(dipole_length, "dipole")
     @printf "  Estimated resonant frequency: %.1f MHz\n" f_res/1e6
     @printf "  Corresponding wavelength: %.3f m\n" wavelength
     
     # Create mesh
     println("\nCreating dipole mesh...")
-    vertices, triangle_indices = create_dipole_mesh(length, radius, n_segments)
+    vertices, triangle_indices = create_dipole_mesh(dipole_length, radius, n_segments)
     mesh = Mesh3D(vertices, triangle_indices)
     
     # Analyze mesh quality
@@ -267,27 +267,27 @@ function demonstrate_patch_impedance()
     microstrip patch antenna impedance calculation.
     """
     println("\nRectangular Patch Antenna Impedance Analysis")
-    println("=" ^ 48)
+    println(repeat("=", 48))
     
     # Patch parameters (typical values for 2.4 GHz)
-    length = 0.031  # meters (resonant dimension)
+    patch_length = 0.031  # meters (resonant dimension)
     width = 0.024   # meters
     n_x = 15
     n_y = 12
     
     println("Patch parameters:")
-    @printf "  Length: %.3f m\n" length
+    @printf "  Length: %.3f m\n" patch_length
     @printf "  Width: %.3f m\n" width
     @printf "  Mesh divisions: %d × %d\n" n_x n_y
     
     # Estimate resonant frequency
-    f_res, wavelength = estimate_resonant_frequency(length, "patch")
+    f_res, wavelength = estimate_resonant_frequency(patch_length, "patch")
     @printf "  Estimated resonant frequency: %.1f GHz\n" f_res/1e9
     @printf "  Corresponding wavelength: %.3f m\n" wavelength
     
     # Create mesh
     println("\nCreating patch mesh...")
-    vertices, triangle_indices = create_patch_antenna_mesh(length, width, n_x, n_y)
+    vertices, triangle_indices = create_patch_antenna_mesh(patch_length, width, n_x, n_y)
     mesh = Mesh3D(vertices, triangle_indices)
     
     # Analyze mesh quality
@@ -305,7 +305,7 @@ function demonstrate_impedance_calculation_workflow()
     """
     println("Method of Moments Antenna Impedance Calculation")
     println("Based on Gibson 'Method of Moments in Electromagnetics'")
-    println("=" ^ 60)
+    println(repeat("=", 60))
     
     # Demonstrate different antenna types
     dipole_mesh, dipole_freq = demonstrate_dipole_impedance()

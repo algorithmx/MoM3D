@@ -184,7 +184,7 @@ function demonstrate_sphere_scattering()
     println("Conducting Sphere Scattering Analysis")
     println("Based on Gibson 'Method of Moments in Electromagnetics'")
     println("Sections 6.6.2 (Theory) and 7.7.2 (Validation)")
-    println("=" ^ 60)
+    println(repeat("=", 60))
     
     # Sphere parameters (Gibson Section 7.7.2 uses 2-meter diameter)
     radius = 1.0  # meters (2-meter diameter)
