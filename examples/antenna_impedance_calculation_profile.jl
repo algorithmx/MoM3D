@@ -1,29 +1,3 @@
-"""
-Antenna Impedance Calculation Example
-
-This example demonstrates the Method of Moments approach for calculating antenna
-input impedance, based on the theoretical framework in Gibson's "The Method of
-Moments in Electromagnetics."
-
-Theoretical Background:
-- Antenna impedance calculation is a fundamental MoM application
-- Gibson discusses antenna problems throughout the text, particularly wire antennas
-- Input impedance Z = V/I where V is applied voltage and I is input current
-- MoM provides surface current distribution, from which impedance is calculated
-
-Key Concepts:
-- Delta-gap excitation for voltage sources
-- Current integration for input impedance
-- Resonance behavior and bandwidth analysis
-- Validation against analytical solutions (thin wire theory)
-
-Applications:
-- Antenna design and optimization
-- Impedance matching network design
-- Bandwidth and efficiency analysis
-- Electromagnetic compatibility studies
-"""
-
 using MoM3D
 using LinearAlgebra
 using StaticArrays
@@ -299,7 +273,7 @@ end
 function compute_input_impedance(mesh::Mesh3D, frequency::Float64; V_feed::ComplexF64 = 1.0+0im)
     # Assemble EFIE matrix
     println("Assembling EFIE matrix at $(frequency/1e6) MHz...")
-    @time Z = assemble_efie_matrix(mesh, frequency; progress=true)
+    Z = assemble_efie_matrix(mesh, frequency; progress=true)
 
     # Build a delta-gap excitation vector: apply unit voltage across the central edge
     # Find a candidate feed edge: interior edge closest to origin (0,0,0)
@@ -343,105 +317,25 @@ function compute_input_impedance(mesh::Mesh3D, frequency::Float64; V_feed::Compl
     return Z_in, I, feed_edge_idx, report, frequency
 end
 
-function demonstrate_impedance_calculation_workflow()
-    """
-    Main demonstration of antenna impedance calculation workflow.
-    
-    This example outlines the complete process for MoM-based
-    antenna impedance calculation, following Gibson's methodology.
-    """
-    # println("Method of Moments Antenna Impedance Calculation")
-    # println("Based on Gibson 'Method of Moments in Electromagnetics'")
-    # println(repeat("=", 60))
-    
-    # Demonstrate different antenna types and compute impedances
-    dipole_mesh, dipole_freq = demonstrate_dipole_impedance()
-    patch_mesh, patch_freq = demonstrate_patch_impedance()
 
-    # Compute input impedances (unit voltage feed)
-    println("\n--- Computing input impedances using MoM3D ---")
-    # Collect results and solver reports for a compact progress summary
-    results = []
+# ======================================================
 
-    try
-        Z_dipole, I_dipole, feed_idx_d, report_d, freq_d = compute_input_impedance(dipole_mesh, dipole_freq)
-        push!(results, (type="dipole", freq=freq_d, Z=Z_dipole, report=report_d))
-    catch e
-        @warn "Dipole impedance computation failed" exception=e
-        push!(results, (type="dipole", freq=dipole_freq, Z=nothing, report=nothing))
-    end
+using Profile
+using ProfileView
+Profile.clear()
 
-    try
-        Z_patch, I_patch, feed_idx_p, report_p, freq_p = compute_input_impedance(patch_mesh, patch_freq)
-        push!(results, (type="patch", freq=freq_p, Z=Z_patch, report=report_p))
-    catch e
-        @warn "Patch impedance computation failed" exception=e
-        push!(results, (type="patch", freq=patch_freq, Z=nothing, report=nothing))
-    end
+# Demonstrate different antenna types and compute impedances
+dipole_mesh, dipole_freq = demonstrate_dipole_impedance() ;
+patch_mesh, patch_freq = demonstrate_patch_impedance() ;
 
-    # Print a concise progress summary similar to the terminal log
-    println("\n--- Computing input impedances using MoM3D ---")
-    for r in results
-        if r.report !== nothing
-            @printf "Assembling EFIE matrix at %.3f MHz...\n" (r.freq/1e6)
-            @printf "Solving linear system (n = %d)...\n" length(dipole_mesh.edges) # approximate; solver report doesn't include n
-            @printf "Solver report: method=%s converged=%s residual=%g\n" string(r.report.method) string(r.report.converged) r.report.residual_norm
-            @printf "Computed input impedance at %.3f MHz: %s\n" (r.freq/1e6) string(r.Z)
-        else
-            @printf "Computation for %s at %.3f MHz failed.\n" r.type (r.freq/1e6)
-        end
-    end
-    
-    # # General MoM workflow for impedance calculation
-    # println("\n=== MoM Impedance Calculation Workflow ===")
-    # println("1. Mesh Generation:")
-    # println("   • Create surface triangulation of antenna geometry")
-    # println("   • Ensure adequate mesh density (λ/10 to λ/20)")
-    # println("   • Verify mesh quality (aspect ratios, angles)")
-    
-    # println("\n2. Basis Function Setup:")
-    # println("   • Define RWG basis functions on mesh edges")
-    # println("   • Handle feed point excitation (delta-gap source)")
-    # println("   • Ensure current continuity across triangles")
-    
-    # println("\n3. Matrix Assembly:")
-    # println("   • Compute EFIE impedance matrix elements")
-    # println("   • Apply numerical integration (singular/regular)")
-    # println("   • Include feed point boundary conditions")
-    
-    # println("\n4. System Solution:")
-    # println("   • Solve Z·I = V for surface current coefficients")
-    # println("   • Extract input current at feed point")
-    # println("   • Calculate input impedance Z_in = V_feed / I_feed")
-    
-    # println("\n5. Post-Processing:")
-    # println("   • Plot impedance vs. frequency")
-    # println("   • Identify resonant frequencies")
-    # println("   • Calculate bandwidth and efficiency")
-    # println("   • Validate against analytical solutions")
-    
-    # # Expected results
-    # println("\n=== Expected Results ===")
-    # println("Wire Dipole (λ/2):")
-    # println("  • Input resistance: ~73 Ω at resonance")
-    # println("  • Input reactance: ~0 Ω at resonance")
-    # println("  • Bandwidth: ~10% for VSWR < 2:1")
-    
-    # println("\nRectangular Patch:")
-    # println("  • Input resistance: ~100-300 Ω (depends on feed location)")
-    # println("  • Input reactance: ~0 Ω at resonance")
-    # println("  • Bandwidth: ~2-5% for VSWR < 2:1")
-    
-    # println("\n=== Validation Approaches ===")
-    # println("• Compare with analytical solutions (thin wire theory)")
-    # println("• Cross-validate with commercial EM simulators")
-    # println("• Verify convergence with mesh refinement")
-    # println("• Check reciprocity and energy conservation")
-    
-    return dipole_mesh, patch_mesh
-end
+# Compute input impedances (unit voltage feed)
 
-# Run demonstration if script is executed directly
-if abspath(PROGRAM_FILE) == @__FILE__
-    dipole_mesh, patch_mesh = demonstrate_impedance_calculation_workflow()
-end
+
+Profile.clear()
+
+@profile Z_dipole, I_dipole, feed_idx_d, report_d, freq_d = compute_input_impedance(dipole_mesh, dipole_freq);
+
+ProfileView.view()
+
+
+Z_patch, I_patch, feed_idx_p, report_p, freq_p = compute_input_impedance(patch_mesh, patch_freq)
