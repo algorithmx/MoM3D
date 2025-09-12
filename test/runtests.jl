@@ -8,6 +8,7 @@ println("=" ^ 40)
     include("test_geometry.jl")
     include("test_theoretical_validation.jl")
     include("test_solvers.jl")
+    include("test_integration.jl")
 end
 
 println("\nAll tests completed!")

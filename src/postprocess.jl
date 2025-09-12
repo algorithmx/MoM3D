@@ -17,8 +17,9 @@ function compute_near_field(current_coeffs::Vector{ComplexF64}, mesh::Mesh3D,
     H_field = [SVector(complex(0.0), complex(0.0), complex(0.0)) for _ in observation_points]
     
     for (obs_idx, r_obs) in enumerate(observation_points)
+        rwgs = get_rwgs(mesh)
         for edge_idx in 1:mesh.num_edges
-            rwg = RWGFunction(mesh.edges[edge_idx], mesh)
+            rwg = rwgs[edge_idx]
             I_n = current_coeffs[edge_idx]
             
             E_contribution = compute_electric_field_contribution(rwg, I_n, r_obs, mesh, k, η)
@@ -106,8 +107,9 @@ function compute_far_field(current_coeffs::Vector{ComplexF64}, mesh::Mesh3D,
             
             E_far = SVector(complex(0.0), complex(0.0), complex(0.0))
             
+            rwgs = get_rwgs(mesh)
             for edge_idx in 1:mesh.num_edges
-                rwg = RWGFunction(mesh.edges[edge_idx], mesh)
+                rwg = rwgs[edge_idx]
                 I_n = current_coeffs[edge_idx]
                 
                 E_contribution = compute_far_field_contribution(rwg, I_n, r_hat, mesh, k, η)
@@ -158,8 +160,9 @@ function compute_current_density(current_coeffs::Vector{ComplexF64}, mesh::Mesh3
     current_density = [SVector(complex(0.0), complex(0.0), complex(0.0)) for _ in evaluation_points]
     
     for (point_idx, r) in enumerate(evaluation_points)
+        rwgs = get_rwgs(mesh)
         for edge_idx in 1:mesh.num_edges
-            rwg = RWGFunction(mesh.edges[edge_idx], mesh)
+            rwg = rwgs[edge_idx]
             I_n = current_coeffs[edge_idx]
             
             f_n = evaluate_rwg(rwg, r, mesh)
