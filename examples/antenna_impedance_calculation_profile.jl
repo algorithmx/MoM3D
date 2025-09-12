@@ -273,7 +273,7 @@ end
 function compute_input_impedance(mesh::Mesh3D, frequency::Float64; V_feed::ComplexF64 = 1.0+0im)
     # Assemble EFIE matrix
     println("Assembling EFIE matrix at $(frequency/1e6) MHz...")
-    Z = assemble_efie_matrix(mesh, frequency; progress=true)
+    Z = assemble_efie_matrix(mesh, frequency; progress=true, parallel=true)
 
     # Build a delta-gap excitation vector: apply unit voltage across the central edge
     # Find a candidate feed edge: interior edge closest to origin (0,0,0)
