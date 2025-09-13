@@ -70,7 +70,7 @@ using StaticArrays
 
         # Test integrate_singular with a smooth integrand (should equal area * value at centroid)
         integrand_constant = r -> 2.5 + 0.1* r[1] - 0.2 * r[2]
-    res = integrate_singular(integrand_constant, tri, 7)
+    res = integrate_singular(integrand_constant, tri; quad_order=7)
         # Analytical integral over triangle of integrand = area * average. For linear function average equals value at centroid (1/3,1/3)
         centroid = SVector(1/3,1/3,0.0)
         expected = tri.area * integrand_constant(centroid)
@@ -79,7 +79,7 @@ using StaticArrays
         # Test integrate_regular for two identical triangles and a separable kernel f(r_obs,r_src)=1
         tri_src = tri
         tri_obs = tri
-        res2 = integrate_regular((ro, rs) -> 1.0, tri_src, tri_obs, quad_order=3)
+    res2 = integrate_regular((ro, rs) -> 1.0, tri_src, tri_obs; quad_order=3)
         # Integral over source and obs of 1 = area_src * area_obs
         @test isapprox(res2, tri.area * tri.area; atol=1e-10)
     end
