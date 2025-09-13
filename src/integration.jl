@@ -178,10 +178,11 @@ function integrate_regular(integrand_func, tri_src::Triangle, tri_obs::Triangle;
     return result
 end
 
-# Positional wrapper for backward compatibility: allow calling with positional quad_order
-function integrate_regular(integrand_func, tri_src::Triangle, tri_obs::Triangle, quad_order::Int=3)
-    return integrate_regular(integrand_func, tri_src, tri_obs; quad_order=quad_order)
-end
+# NOTE: integrate_regular provides a single canonical signature with a keyword
+# argument `quad_order`. Callers must pass `quad_order` as a keyword (e.g.
+# `integrate_regular(f, tri_src, tri_obs; quad_order=5)`). This keeps the API
+# unambiguous and avoids multiple method definitions with identical type
+# signatures during precompilation.
 
 function integrate_singular(integrand_func, triangle::Triangle; quad_order::Int=7)
     points, weights = gauss_triangle(quad_order)
@@ -198,10 +199,9 @@ function integrate_singular(integrand_func, triangle::Triangle; quad_order::Int=
     return result
 end
 
-# Positional wrapper for backward compatibility: allow calling with positional quad_order
-function integrate_singular(integrand_func, triangle::Triangle, quad_order::Int=7)
-    return integrate_singular(integrand_func, triangle; quad_order=quad_order)
-end
+# NOTE: integrate_singular provides a single canonical signature with a keyword
+# argument `quad_order`. Callers should use the keyword form to avoid ambiguity
+# during precompilation: `integrate_singular(f, tri; quad_order=7)`.
 
 function integrate_near_singular(integrand_func, tri_src::Triangle, tri_obs::Triangle,
     tolerance::Float64=1e-6, max_subdivisions::Int=10)

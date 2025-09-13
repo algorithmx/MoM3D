@@ -61,8 +61,8 @@ function compute_electric_field_contribution(rwg::RWGFunction, current_coeff::Co
         return vector_term + scalar_term
     end
     
-    integral_plus = integrate_regular(integrand_plus, tri_plus, Triangle(r_obs, r_obs, r_obs), 3)
-    integral_minus = integrate_regular(integrand_minus, tri_minus, Triangle(r_obs, r_obs, r_obs), 3)
+    integral_plus = integrate_regular(integrand_plus, tri_plus, Triangle(r_obs, r_obs, r_obs); quad_order=3)
+    integral_minus = integrate_regular(integrand_minus, tri_minus, Triangle(r_obs, r_obs, r_obs); quad_order=3)
     
     return current_coeff * (integral_plus + integral_minus)
 end
@@ -85,8 +85,8 @@ function compute_magnetic_field_contribution(rwg::RWGFunction, current_coeff::Co
         return -cross(f_n, grad_g)
     end
     
-    integral_plus = integrate_regular(integrand_plus, tri_plus, Triangle(r_obs, r_obs, r_obs), 3)
-    integral_minus = integrate_regular(integrand_minus, tri_minus, Triangle(r_obs, r_obs, r_obs), 3)
+    integral_plus = integrate_regular(integrand_plus, tri_plus, Triangle(r_obs, r_obs, r_obs); quad_order=3)
+    integral_minus = integrate_regular(integrand_minus, tri_minus, Triangle(r_obs, r_obs, r_obs); quad_order=3)
     
     return current_coeff * (integral_plus + integral_minus)
 end
@@ -142,8 +142,8 @@ function compute_far_field_contribution(rwg::RWGFunction, current_coeff::Complex
         return -f_n * phase
     end
     
-    integral_plus = integrate_regular(integrand_plus, tri_plus, tri_plus, 3)
-    integral_minus = integrate_regular(integrand_minus, tri_minus, tri_minus, 3)
+    integral_plus = integrate_regular(integrand_plus, tri_plus, tri_plus; quad_order=3)
+    integral_minus = integrate_regular(integrand_minus, tri_minus, tri_minus; quad_order=3)
     
     total_integral = integral_plus + integral_minus
     

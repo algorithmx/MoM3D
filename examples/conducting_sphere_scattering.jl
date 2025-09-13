@@ -215,8 +215,8 @@ function compute_plane_wave_excitation(mesh::Mesh3D, k_hat::SVector{3, Float64},
         end
         
         # Integrate over both triangles
-        integral_plus = integrate_regular(integrand_plus, tri_plus, tri_plus, 3)
-        integral_minus = integrate_regular(integrand_minus, tri_minus, tri_minus, 3)
+    integral_plus = integrate_regular(integrand_plus, tri_plus, tri_plus; quad_order=3)
+    integral_minus = integrate_regular(integrand_minus, tri_minus, tri_minus; quad_order=3)
         
         b[edge_idx] = integral_plus + integral_minus
     end
@@ -271,8 +271,8 @@ function compute_sphere_rcs_monostatic(current_coeffs::Vector{ComplexF64},
         end
         
         # Integrate over triangles
-        integral_plus = integrate_regular(integrand_plus, tri_plus, tri_plus, 3)
-        integral_minus = integrate_regular(integrand_minus, tri_minus, tri_minus, 3)
+    integral_plus = integrate_regular(integrand_plus, tri_plus, tri_plus; quad_order=3)
+    integral_minus = integrate_regular(integrand_minus, tri_minus, tri_minus; quad_order=3)
         
         total_integral = integral_plus + integral_minus
         

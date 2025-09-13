@@ -4,12 +4,19 @@ using LinearAlgebra
 using StaticArrays
 using GeometryBasics
 
-export Triangle, Edge, Mesh3D, find_edges, validate_mesh, analyze_mesh_quality, detect_t_junctions, repair_mesh_connectivity, compute_aspect_ratio, compute_min_angle, compute_max_angle
+export Triangle, Edge, Mesh3D, find_edges, update_mesh!, validate_mesh, analyze_mesh_quality, detect_t_junctions, repair_mesh_connectivity, compute_aspect_ratio, compute_min_angle, compute_max_angle, point_in_triangle, find_opposite_vertex, find_opposite_vertex_index, recompute_edge_opposites!
 
 struct Triangle
     vertices::SVector{3,SVector{3,Float64}}
     area::Float64
     normal::SVector{3,Float64}
+    # Precomputed for fast point-in-triangle tests
+    e0::SVector{3,Float64}    # v3 - v1
+    e1::SVector{3,Float64}    # v2 - v1
+    dot00::Float64
+    dot01::Float64
+    dot11::Float64
+    inv_denom::Float64
 
     function Triangle(v1::SVector{3,Float64}, v2::SVector{3,Float64}, v3::SVector{3,Float64})
         vertices = SVector(v1, v2, v3)
@@ -17,7 +24,16 @@ struct Triangle
         edge2 = v3 - v1
         normal = normalize(cross(edge1, edge2))
         area = 0.5 * norm(cross(edge1, edge2))
-        new(vertices, area, normal)
+
+        e0 = v3 - v1
+        e1 = v2 - v1
+        dot00 = dot(e0, e0)
+        dot01 = dot(e0, e1)
+        dot11 = dot(e1, e1)
+        denom = dot00 * dot11 - dot01 * dot01
+        inv_denom = abs(denom) < 1e-16 ? 0.0 : 1.0 / denom
+
+        new(vertices, area, normal, e0, e1, dot00, dot01, dot11, inv_denom)
     end
 end
 
@@ -28,12 +44,14 @@ struct Edge
     vertex2::Int
     length::Float64
     center::SVector{3,Float64}
+    opp_plus::Int
+    opp_minus::Int
 
     function Edge(tri_plus::Int, tri_minus::Int, v1_idx::Int, v2_idx::Int,
-        v1::SVector{3,Float64}, v2::SVector{3,Float64})
+        v1::SVector{3,Float64}, v2::SVector{3,Float64}, opp_plus::Int, opp_minus::Int)
         length = norm(v2 - v1)
         center = 0.5 * (v1 + v2)
-        new(tri_plus, tri_minus, v1_idx, v2_idx, length, center)
+        new(tri_plus, tri_minus, v1_idx, v2_idx, length, center, opp_plus, opp_minus)
     end
 end
 
@@ -169,8 +187,15 @@ function find_edges(vertices::Vector{SVector{3,Float64}}, triangle_indices::Vect
             edge_map[edge_key] = common_facets
 
             if length(common_facets) == 2
-                edge = Edge(common_facets[1], common_facets[2], node1, node2,
-                    vertices[node1], vertices[node2])
+                t1, t2 = common_facets[1], common_facets[2]
+                tri1 = triangle_indices[t1]
+                tri2 = triangle_indices[t2]
+
+                # find the opposite vertex index in each triangle (the vertex that is not node1 or node2)
+                opp1 = (tri1[1] != node1 && tri1[1] != node2) ? tri1[1] : ((tri1[2] != node1 && tri1[2] != node2) ? tri1[2] : tri1[3])
+                opp2 = (tri2[1] != node1 && tri2[1] != node2) ? tri2[1] : ((tri2[2] != node1 && tri2[2] != node2) ? tri2[2] : tri2[3])
+
+                edge = Edge(t1, t2, node1, node2, vertices[node1], vertices[node2], opp1, opp2)
                 push!(edges, edge)
             elseif length(common_facets) > 2
                 @warn "Edge ($node1, $node2) touches $(length(common_facets)) triangles - non-manifold geometry detected"
@@ -179,6 +204,79 @@ function find_edges(vertices::Vector{SVector{3,Float64}}, triangle_indices::Vect
     end
 
     return edges, edge_map, node_connectivity, facet_connectivity
+end
+
+"""
+    recompute_edge_opposites!(mesh::Mesh3D)
+
+Recompute the `opp_plus` and `opp_minus` fields for every `Edge` in `mesh`
+based on the current `mesh.triangles` and `mesh.vertices`. This is useful
+when connectivity/triangles have changed in-place but the `edges` vector
+was not rebuilt via `update_mesh!`.
+
+This function will also call `invalidate_rwg_cache!(mesh)` to ensure any
+cached RWGFunctions observe the new opposite indices.
+"""
+function recompute_edge_opposites!(mesh::Mesh3D)
+    # Build a fast map from vertex coordinate -> index for O(1) lookup
+    vmap = Dict{SVector{3,Float64},Int}()
+    for (i, v) in enumerate(mesh.vertices)
+        vmap[v] = i
+    end
+
+    # Build edge -> facet list using the vertex index map
+    edge_to_facets = Dict{Tuple{Int,Int},Vector{Int}}()
+    for (tidx, tri) in enumerate(mesh.triangles)
+        tri_nodes = Int[]
+        for v in tri.vertices
+            idx = get(vmap, v, nothing)
+            if idx === nothing
+                # Fallback to tolerant search if direct equality failed
+                idx = findfirst(x -> isapprox(x, v; atol=1e-12), mesh.vertices)
+                if idx === nothing
+                    error("Vertex in triangle not found in mesh.vertices while recomputing opposites")
+                end
+            end
+            push!(tri_nodes, idx)
+        end
+
+        pairs = ((min(tri_nodes[1], tri_nodes[2]), max(tri_nodes[1], tri_nodes[2])),
+            (min(tri_nodes[1], tri_nodes[3]), max(tri_nodes[1], tri_nodes[3])),
+            (min(tri_nodes[2], tri_nodes[3]), max(tri_nodes[2], tri_nodes[3])))
+
+        for p in pairs
+            push!(get!(edge_to_facets, p, Int[]), tidx)
+        end
+    end
+
+    # Update each Edge's opposite indices using the prebuilt facet lists
+    for (i, edge) in enumerate(mesh.edges)
+        v1, v2 = edge.vertex1, edge.vertex2
+        key = (min(v1, v2), max(v1, v2))
+        facets = get(edge_to_facets, key, Int[])
+        if length(facets) == 2
+            t1, t2 = facets[1], facets[2]
+
+            # Get triangle node indices efficiently using the vmap
+            tri1 = mesh.triangles[t1]
+            tri2 = mesh.triangles[t2]
+            tri1_nodes = [get(vmap, v, findfirst(x -> isapprox(x, v; atol=1e-12), mesh.vertices)) for v in tri1.vertices]
+            tri2_nodes = [get(vmap, v, findfirst(x -> isapprox(x, v; atol=1e-12), mesh.vertices)) for v in tri2.vertices]
+
+            opp1 = (tri1_nodes[1] != v1 && tri1_nodes[1] != v2) ? tri1_nodes[1] : ((tri1_nodes[2] != v1 && tri1_nodes[2] != v2) ? tri1_nodes[2] : tri1_nodes[3])
+            opp2 = (tri2_nodes[1] != v1 && tri2_nodes[1] != v2) ? tri2_nodes[1] : ((tri2_nodes[2] != v1 && tri2_nodes[2] != v2) ? tri2_nodes[2] : tri2_nodes[3])
+
+            new_opp_plus = edge.triangle_plus == t1 ? opp1 : (edge.triangle_plus == t2 ? opp2 : 0)
+            new_opp_minus = edge.triangle_minus == t1 ? opp1 : (edge.triangle_minus == t2 ? opp2 : 0)
+
+            mesh.edges[i] = Edge(edge.triangle_plus, edge.triangle_minus, v1, v2, mesh.vertices[v1], mesh.vertices[v2], new_opp_plus, new_opp_minus)
+        end
+    end
+
+    # Invalidate RWG cache so cached RWGFunctions pick up new opp indices
+    invalidate_rwg_cache!(mesh)
+
+    return nothing
 end
 
 function analyze_mesh_quality(triangles::Vector{Triangle}, vertices::Vector{SVector{3,Float64}})
@@ -259,6 +357,124 @@ function compute_aspect_ratio(triangle::Triangle)
 
     return longest_edge / shortest_edge
 end
+
+"""
+        point_in_triangle(point::SVector{3,Float64}, triangle::Triangle) -> Bool
+
+Check whether a 3D point lies inside a triangle using barycentric
+coordinates computed in the triangle's plane.
+
+Arguments
+- `point` : An `SVector{3,Float64}` representing the point to test.
+- `triangle` : A `Triangle` containing three vertices (SVector{3,Float64}).
+
+Returns
+- `Bool` : `true` when the projected barycentric coordinates are inside
+    the triangle (including edges), `false` otherwise.
+
+Notes
+- This routine computes barycentric coordinates in the plane defined by
+    the triangle; the caller should ensure the point is intended to be
+    tested against that plane (or accept the implicit projection). Small
+    numerical tolerances are not handled here — callers may want to apply
+    an epsilon when testing points near edges.
+"""
+function point_in_triangle(point::SVector{3,Float64}, triangle::Triangle; tol::Float64=1e-8)
+    # Unpack triangle vertices and precomputed normal
+    v1, v2, v3 = triangle.vertices
+    n = triangle.normal
+
+    # Quick reject: check distance from point to triangle plane
+    # signed distance = dot(n, point - v1)
+    dist = dot(n, point - v1)
+    if abs(dist) > tol
+        return false
+    end
+
+    # Project point onto plane (robust for near-coplanar points)
+    p_proj = point - dist * n
+
+    # Use precomputed edge vectors and dot-products stored in Triangle
+    v2v = p_proj - v1
+    dot02 = dot(triangle.e0, v2v)
+    dot12 = dot(triangle.e1, v2v)
+
+    if triangle.inv_denom == 0.0
+        # Degenerate triangle
+        return false
+    end
+
+    u = (triangle.dot11 * dot02 - triangle.dot01 * dot12) * triangle.inv_denom
+    v = (triangle.dot00 * dot12 - triangle.dot01 * dot02) * triangle.inv_denom
+
+    eps = -tol
+    return (u >= eps) && (v >= eps) && (u + v <= 1.0 - eps)
+end
+
+
+"""
+        find_opposite_vertex(edge::Edge, triangle::Triangle, mesh::Mesh3D) -> SVector{3,Float64}
+
+Return the vertex coordinate of `triangle` that is opposite the given `edge`.
+
+Arguments
+- `edge::Edge` : an `Edge` whose `vertex1` and `vertex2` are indices into `mesh.vertices`.
+- `triangle::Triangle` : a triangle storing three vertex coordinates (`SVector{3,Float64}`).
+- `mesh::Mesh3D` : the containing mesh used to look up the coordinates of the edge endpoints.
+
+Returns
+- `SVector{3,Float64}` : the coordinate of the triangle vertex that is not equal (within a small tolerance) to
+    either `mesh.vertices[edge.vertex1]` or `mesh.vertices[edge.vertex2]`.
+
+Notes
+- Comparison is done by coordinate distance with a tiny tolerance (1e-12) to avoid strict floating-point equality.
+- The function returns the coordinate vector, not the vertex index; if an index is required prefer comparing
+    indices or add a variant that returns the index as well.
+- If no distinct opposite vertex is found (e.g. degenerate triangle or inconsistent mesh), the function throws an error.
+"""
+function find_opposite_vertex(edge::Edge, triangle::Triangle, mesh::Mesh3D)
+    # Rely on precomputed opposite indices stored on the edge. The triangle
+    # argument must be one of the two triangles adjacent to the edge.
+    if edge.triangle_plus > 0 && triangle === mesh.triangles[edge.triangle_plus]
+        opp = edge.opp_plus
+    elseif edge.triangle_minus > 0 && triangle === mesh.triangles[edge.triangle_minus]
+        opp = edge.opp_minus
+    else
+        error("Provided triangle is not adjacent to the edge")
+    end
+
+    if opp == 0
+        error("Opposite vertex index not set for this edge side")
+    end
+
+    return mesh.vertices[opp]
+end
+
+@inline dist2(a::SVector{3,Float64}, b::SVector{3,Float64}) = dot(a - b, a - b)
+
+
+"""
+    find_opposite_vertex_index(edge::Edge; side::Symbol = :plus) -> Int
+
+Return the precomputed opposite vertex index for `edge`.
+
+Arguments
+- `edge::Edge` : the edge with `opp_plus` and `opp_minus` fields set during `find_edges`.
+- `side::Symbol` : either `:plus` or `:minus` to select the corresponding opposite vertex.
+
+Returns
+- `Int` : the vertex index of the opposite vertex for the requested side (0 if missing).
+"""
+function find_opposite_vertex_index(edge::Edge; side::Symbol=:plus)
+    if side === :plus
+        return edge.opp_plus
+    elseif side === :minus
+        return edge.opp_minus
+    else
+        error("side must be :plus or :minus")
+    end
+end
+
 
 function compute_min_angle(triangle::Triangle)
     v1, v2, v3 = triangle.vertices

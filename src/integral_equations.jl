@@ -5,7 +5,7 @@ using LinearAlgebra
 using StaticArrays
 using ..Geometry
 using ..BasisFunctions
-using ..GreenFunctions: green_3d, green_3d_singular_extraction, wavenumber, green_3d_fast, FOUR_PI, μ0, ε0
+using ..GreenFunctions: green_3d, green_3d_singular_extraction, wavenumber, green_3d, FOUR_PI, μ0, ε0
 using ..Integration
 
 export assemble_efie_matrix, assemble_mfie_matrix, assemble_cfie_matrix
@@ -13,6 +13,75 @@ export compute_excitation_vector
 
 # Module-level lock for safely building/storing per-mesh integration caches
 const INTEGRATION_CACHE_LOCK = ReentrantLock()
+
+# Helper: build or return integration caches (thread-safe)
+function ensure_integration_caches(mesh::Mesh3D; orders=(3, 5, 7, 9))
+    if mesh.integration_cache !== nothing
+        return mesh.integration_cache
+    end
+
+    lock(INTEGRATION_CACHE_LOCK)
+    try
+        if mesh.integration_cache !== nothing
+            return mesh.integration_cache
+        end
+
+        gauss_rules = Dict{Int,Tuple{Vector{SVector{2,Float64}},Vector{Float64}}}()
+        for ord in orders
+            gauss_rules[ord] = gauss_triangle(ord)
+        end
+
+        n_tri = length(mesh.triangles)
+        triangle_rwgs = [Int[] for _ in 1:n_tri]
+        rwgs = get_rwgs(mesh)
+        for (i, rwg) in enumerate(rwgs)
+            push!(triangle_rwgs[rwg.triangle_plus], i)
+            push!(triangle_rwgs[rwg.triangle_minus], i)
+        end
+
+        tri_cart_pts = Dict{Int,Vector{Vector{SVector{3,Float64}}}}()
+        tri_rwg_vals = Dict{Int,Vector{Dict{Int,Vector{SVector{3,Float64}}}}}()
+
+        for ord in orders
+            bary_pts, weights = gauss_rules[ord]
+            cart_pts_per_tri = Vector{Vector{SVector{3,Float64}}}(undef, n_tri)
+            rwgvals_per_tri = Vector{Dict{Int,Vector{SVector{3,Float64}}}}(undef, n_tri)
+
+            Threads.@threads for tid in 1:n_tri
+                tri = mesh.triangles[tid]
+                cps = Vector{SVector{3,Float64}}(undef, length(bary_pts))
+                for (j, ξ) in enumerate(bary_pts)
+                    cps[j] = barycentric_to_cartesian(ξ, tri)
+                end
+                cart_pts_per_tri[tid] = cps
+
+                dict = Dict{Int,Vector{SVector{3,Float64}}}()
+                for rwg_idx in triangle_rwgs[tid]
+                    vals = Vector{SVector{3,Float64}}(undef, length(cps))
+                    for (j, pt) in enumerate(cps)
+                        vals[j] = evaluate_rwg(rwgs[rwg_idx], pt, mesh)
+                    end
+                    dict[rwg_idx] = vals
+                end
+                rwgvals_per_tri[tid] = dict
+            end
+
+            tri_cart_pts[ord] = cart_pts_per_tri
+            tri_rwg_vals[ord] = rwgvals_per_tri
+        end
+
+        caches = Dict{Symbol,Any}(
+            :gauss_rules => gauss_rules,
+            :tri_cart_pts => tri_cart_pts,
+            :tri_rwg_vals => tri_rwg_vals
+        )
+
+        mesh.integration_cache = caches
+        return caches
+    finally
+        unlock(INTEGRATION_CACHE_LOCK)
+    end
+end
 
 function assemble_efie_matrix(mesh::Mesh3D, frequency::Float64; progress::Bool=false, parallel::Bool=false, chunk_size::Int=0)
     k = wavenumber(frequency)
@@ -28,73 +97,30 @@ function assemble_efie_matrix(mesh::Mesh3D, frequency::Float64; progress::Bool=f
     # the caches and persist them on the mesh. Double-checked locking ensures
     # only one thread builds and stores the cache if multiple assembly calls
     # happen concurrently.
-    if mesh.integration_cache !== nothing
-        caches = mesh.integration_cache
-    else
-        lock(INTEGRATION_CACHE_LOCK)
-        try
-            if mesh.integration_cache !== nothing
-                caches = mesh.integration_cache
-            else
-                orders = (3, 5, 7, 9)
-                gauss_rules = Dict{Int,Tuple{Vector{SVector{2,Float64}},Vector{Float64}}}()
-                for ord in orders
-                    gauss_rules[ord] = gauss_triangle(ord)
-                end
+    # Build or reuse integration caches
+    caches = ensure_integration_caches(mesh)
 
-                n_tri = length(mesh.triangles)
-                # Map triangle -> list of RWG indices referencing it
-                triangle_rwgs = [Int[] for _ in 1:n_tri]
-                for (i, rwg) in enumerate(rwgs)
-                    push!(triangle_rwgs[rwg.triangle_plus], i)
-                    push!(triangle_rwgs[rwg.triangle_minus], i)
-                end
+    # Row-fill helpers
+    function fill_row_range!(Z::AbstractMatrix{ComplexF64}, rwgs, m::Int, n1::Int, n2::Int, k::Float64; caches=nothing)
+        rwg_m = rwgs[m]
+        for n in n1:n2
+            rwg_n = rwgs[n]
+            Z[m, n] = compute_efie_matrix_element(rwg_m, rwg_n, mesh, k; caches=caches)
+        end
+    end
 
-                # tri_cart_pts[ord] = Vector of cartesian points per triangle
-                tri_cart_pts = Dict{Int,Vector{Vector{SVector{3,Float64}}}}()
-                # tri_rwg_vals[ord] = Vector per triangle of Dict{rwg_idx => Vector{SVector{3,Float64}}}
-                tri_rwg_vals = Dict{Int,Vector{Dict{Int,Vector{SVector{3,Float64}}}}}()
+    function assemble_row_serial!(Z, rwgs, m, k; caches=nothing)
+        fill_row_range!(Z, rwgs, m, 1, length(rwgs), k; caches=caches)
+    end
 
-                for ord in orders
-                    bary_pts, weights = gauss_rules[ord]
-                    cart_pts_per_tri = Vector{Vector{SVector{3,Float64}}}(undef, n_tri)
-                    rwgvals_per_tri = Vector{Dict{Int,Vector{SVector{3,Float64}}}}(undef, n_tri)
-
-                    Threads.@threads for tid in 1:n_tri
-                        tri = mesh.triangles[tid]
-                        # compute cartesian quadrature points for this triangle and order
-                        cps = Vector{SVector{3,Float64}}(undef, length(bary_pts))
-                        for (j, ξ) in enumerate(bary_pts)
-                            cps[j] = barycentric_to_cartesian(ξ, tri)
-                        end
-                        cart_pts_per_tri[tid] = cps
-
-                        # precompute RWG evaluations for RWGs that reference this triangle
-                        dict = Dict{Int,Vector{SVector{3,Float64}}}()
-                        for rwg_idx in triangle_rwgs[tid]
-                            vals = Vector{SVector{3,Float64}}(undef, length(cps))
-                            for (j, pt) in enumerate(cps)
-                                vals[j] = evaluate_rwg(rwgs[rwg_idx], pt, mesh)
-                            end
-                            dict[rwg_idx] = vals
-                        end
-                        rwgvals_per_tri[tid] = dict
-                    end
-
-                    tri_cart_pts[ord] = cart_pts_per_tri
-                    tri_rwg_vals[ord] = rwgvals_per_tri
-                end
-
-                caches = Dict{Symbol,Any}(
-                    :gauss_rules => gauss_rules,
-                    :tri_cart_pts => tri_cart_pts,
-                    :tri_rwg_vals => tri_rwg_vals
-                )
-
-                mesh.integration_cache = caches
-            end
-        finally
-            unlock(INTEGRATION_CACHE_LOCK)
+    function assemble_row_parallel!(Z, rwgs, m, bs, k)
+        n_edges = length(rwgs)
+        nblocks = div(n_edges + bs - 1, bs)
+        rwg_m = rwgs[m]
+        Threads.@threads for bi in 1:nblocks
+            i1 = (bi - 1) * bs + 1
+            i2 = min(n_edges, bi * bs)
+            fill_row_range!(Z, rwgs, m, i1, i2, k)
         end
     end
 
@@ -111,19 +137,8 @@ function assemble_efie_matrix(mesh::Mesh3D, frequency::Float64; progress::Bool=f
         else
             bs = max(1, chunk_size)
         end
-
         for m in 1:n_edges
-            rwg_m = rwgs[m]
-
-            nblocks = div(n_edges + bs - 1, bs)
-            Threads.@threads for bi in 1:nblocks
-                i1 = (bi - 1) * bs + 1
-                i2 = min(n_edges, bi * bs)
-                for n in i1:i2
-                    rwg_n = rwgs[n]
-                    Z[m, n] = compute_efie_matrix_element(rwg_m, rwg_n, mesh, k)
-                end
-            end
+            assemble_row_parallel!(Z, rwgs, m, bs, k)
 
             if p !== nothing
                 ProgressMeter.next!(p)
@@ -131,11 +146,7 @@ function assemble_efie_matrix(mesh::Mesh3D, frequency::Float64; progress::Bool=f
         end
     else
         for m in 1:n_edges
-            rwg_m = rwgs[m]
-            for n in 1:n_edges
-                rwg_n = rwgs[n]
-                Z[m, n] = compute_efie_matrix_element(rwg_m, rwg_n, mesh, k; caches=caches)
-            end
+            assemble_row_serial!(Z, rwgs, m, k; caches=caches)
             if p !== nothing
                 ProgressMeter.next!(p)
             end
@@ -227,7 +238,7 @@ function compute_regular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_ob
         # Precompute k^2 to avoid repeated division
         k_squared = k^2
         div_product = (div_m * div_n) / k_squared
-        
+
         @inbounds for i in eachindex(tri_cart)
             f_n = src_vals[i]
             wi = weights[i]
@@ -236,18 +247,18 @@ function compute_regular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_ob
                 f_m = obs_vals[j]
                 wj = weights[j]
                 r_obs = obs_cart[j]
-                
+
                 # Use fast inlined Green's function
-                g = green_3d_fast(r_obs, r_src, k)
-                
+                g = green_3d(r_obs, r_src, k)
+
                 # Use StaticArrays optimized dot product
                 dot_product = dot(f_m, f_n)
-                
+
                 # Combine terms efficiently
                 weight_jac = wi * wj * jacobian
                 vector_contrib = dot_product * g
                 scalar_contrib = (div_product * g)
-                
+
                 result += weight_jac * (vector_contrib + scalar_contrib)
             end
         end
@@ -267,7 +278,7 @@ function compute_regular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_ob
             return vector_term + scalar_term
         end
 
-        return integrate_regular(integrand, tri_src, tri_obs, quad_order)
+        return integrate_regular(integrand, tri_src, tri_obs; quad_order=quad_order)
     end
 end
 
@@ -277,80 +288,87 @@ function compute_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_o
     # Use order 7 for singular extraction and 5 for the regular remainder
     # If caches available, reuse precomputed cartesian points and RWG vals.
     if caches !== nothing && haskey(caches, :tri_cart_pts)
-        # singular part uses barycentric points on obs triangle
-        ord_sing = 7
-        ord_reg = 5
-        obs_pts = caches[:tri_cart_pts][ord_sing][tri_obs_idx]
-        reg_src_pts = caches[:tri_cart_pts][ord_reg][tri_src_idx]
-        reg_obs_pts = caches[:tri_cart_pts][ord_reg][tri_obs_idx]
+        # Cached singular-part: barycentric on observation triangle
+        function compute_singular_part_cached(tri_obs_idx, tri_obs, rwg_m, rwg_n, mesh, caches)
+            ord_sing = 7
+            obs_pts = caches[:tri_cart_pts][ord_sing][tri_obs_idx]
 
-        singular_part = complex(0.0)
-        # Precompute divergences and cached RWG arrays (or compute once)
-        div_m = evaluate_rwg_divergence(rwg_m)
-        div_n = evaluate_rwg_divergence(rwg_n)
+            sing_rwg_dict = caches[:tri_rwg_vals][ord_sing][tri_obs_idx]
+            sing_m_vals = haskey(sing_rwg_dict, rwg_m.edge_index) ? sing_rwg_dict[rwg_m.edge_index] : nothing
+            sing_n_vals = haskey(sing_rwg_dict, rwg_n.edge_index) ? sing_rwg_dict[rwg_n.edge_index] : nothing
 
-        sing_rwg_dict = caches[:tri_rwg_vals][ord_sing][tri_obs_idx]
-        sing_m_vals = haskey(sing_rwg_dict, rwg_m.edge_index) ? sing_rwg_dict[rwg_m.edge_index] : nothing
-        sing_n_vals = haskey(sing_rwg_dict, rwg_n.edge_index) ? sing_rwg_dict[rwg_n.edge_index] : nothing
-
-        if sing_m_vals === nothing || sing_n_vals === nothing
-            sing_m_vals = Vector{SVector{3,Float64}}(undef, length(obs_pts))
-            sing_n_vals = Vector{SVector{3,Float64}}(undef, length(obs_pts))
-            @inbounds for i in eachindex(obs_pts)
-                sing_m_vals[i] = evaluate_rwg(rwg_m, obs_pts[i], mesh)
-                sing_n_vals[i] = evaluate_rwg(rwg_n, obs_pts[i], mesh)
+            if sing_m_vals === nothing || sing_n_vals === nothing
+                sing_m_vals = Vector{SVector{3,Float64}}(undef, length(obs_pts))
+                sing_n_vals = Vector{SVector{3,Float64}}(undef, length(obs_pts))
+                @inbounds for i in eachindex(obs_pts)
+                    sing_m_vals[i] = evaluate_rwg(rwg_m, obs_pts[i], mesh)
+                    sing_n_vals[i] = evaluate_rwg(rwg_n, obs_pts[i], mesh)
+                end
             end
-        end
 
-        # Precompute constant factor
-        area_over_4pi = tri_obs.area / FOUR_PI
-        weights_sing = caches[:gauss_rules][ord_sing][2]
-        
-        for i in eachindex(obs_pts)
-            # Manual dot product for performance
-            dot_product = sing_m_vals[i][1] * sing_n_vals[i][1] + sing_m_vals[i][2] * sing_n_vals[i][2] + sing_m_vals[i][3] * sing_n_vals[i][3]
-            singular_part += weights_sing[i] * area_over_4pi * dot_product
-        end
+            area_over_4pi = tri_obs.area / FOUR_PI
+            weights_sing = caches[:gauss_rules][ord_sing][2]
 
-        regular_part = complex(0.0)
-        jacobian = tri_src.area * tri_obs.area
-        weights = caches[:gauss_rules][ord_reg][2]
-        tri_rwg_reg = caches[:tri_rwg_vals][ord_reg]
-
-        src_dict_reg = tri_rwg_reg[tri_src_idx]
-        obs_dict_reg = tri_rwg_reg[tri_obs_idx]
-
-        src_vals_reg = haskey(src_dict_reg, rwg_n.edge_index) ? src_dict_reg[rwg_n.edge_index] : nothing
-        obs_vals_reg = haskey(obs_dict_reg, rwg_m.edge_index) ? obs_dict_reg[rwg_m.edge_index] : nothing
-
-        if src_vals_reg === nothing
-            src_vals_reg = Vector{SVector{3,Float64}}(undef, length(reg_src_pts))
-            @inbounds for j in eachindex(reg_src_pts)
-                src_vals_reg[j] = evaluate_rwg(rwg_n, reg_src_pts[j], mesh)
+            singular_part = complex(0.0)
+            for i in eachindex(obs_pts)
+                # Manual dot product for performance
+                dot_product = sing_m_vals[i][1] * sing_n_vals[i][1] + sing_m_vals[i][2] * sing_n_vals[i][2] + sing_m_vals[i][3] * sing_n_vals[i][3]
+                singular_part += weights_sing[i] * area_over_4pi * dot_product
             end
+            return singular_part
         end
-        if obs_vals_reg === nothing
-            obs_vals_reg = Vector{SVector{3,Float64}}(undef, length(reg_obs_pts))
+
+        function compute_regular_part_cached(tri_obs_idx, tri_src_idx, tri_obs, tri_src, rwg_m, rwg_n, mesh, k, caches)
+            ord_reg = 5
+            reg_obs_pts = caches[:tri_cart_pts][ord_reg][tri_obs_idx]
+            reg_src_pts = caches[:tri_cart_pts][ord_reg][tri_src_idx]
+
+            jacobian = tri_src.area * tri_obs.area
+            weights = caches[:gauss_rules][ord_reg][2]
+            tri_rwg_reg = caches[:tri_rwg_vals][ord_reg]
+
+            div_m = evaluate_rwg_divergence(rwg_m)
+            div_n = evaluate_rwg_divergence(rwg_n)
+
+            src_dict_reg = tri_rwg_reg[tri_src_idx]
+            obs_dict_reg = tri_rwg_reg[tri_obs_idx]
+
+            src_vals_reg = haskey(src_dict_reg, rwg_n.edge_index) ? src_dict_reg[rwg_n.edge_index] : nothing
+            obs_vals_reg = haskey(obs_dict_reg, rwg_m.edge_index) ? obs_dict_reg[rwg_m.edge_index] : nothing
+
+            if src_vals_reg === nothing
+                src_vals_reg = Vector{SVector{3,Float64}}(undef, length(reg_src_pts))
+                @inbounds for j in eachindex(reg_src_pts)
+                    src_vals_reg[j] = evaluate_rwg(rwg_n, reg_src_pts[j], mesh)
+                end
+            end
+            if obs_vals_reg === nothing
+                obs_vals_reg = Vector{SVector{3,Float64}}(undef, length(reg_obs_pts))
+                @inbounds for i in eachindex(reg_obs_pts)
+                    obs_vals_reg[i] = evaluate_rwg(rwg_m, reg_obs_pts[i], mesh)
+                end
+            end
+
+            regular_part = complex(0.0)
             @inbounds for i in eachindex(reg_obs_pts)
-                obs_vals_reg[i] = evaluate_rwg(rwg_m, reg_obs_pts[i], mesh)
+                f_m = obs_vals_reg[i]
+                wi = weights[i]
+                r_obs = reg_obs_pts[i]
+                for j in eachindex(reg_src_pts)
+                    f_n = src_vals_reg[j]
+                    wj = weights[j]
+                    r_src = reg_src_pts[j]
+                    g_parts = green_3d_singular_extraction(r_obs, r_src, k)
+                    vector_term = dot(f_m, f_n) * g_parts.regular
+                    scalar_term = (div_m * div_n * g_parts.regular) / (k^2)
+                    regular_part += wi * wj * jacobian * (vector_term + scalar_term)
+                end
             end
+            return regular_part
         end
 
-        @inbounds for i in eachindex(reg_obs_pts)
-            f_m = obs_vals_reg[i]
-            wi = weights[i]
-            r_obs = reg_obs_pts[i]
-            for j in eachindex(reg_src_pts)
-                f_n = src_vals_reg[j]
-                wj = weights[j]
-                r_src = reg_src_pts[j]
-                g_parts = green_3d_singular_extraction(r_obs, r_src, k)
-                vector_term = dot(f_m, f_n) * g_parts.regular
-                scalar_term = (div_m * div_n * g_parts.regular) / (k^2)
-                regular_part += wi * wj * jacobian * (vector_term + scalar_term)
-            end
-        end
-
+        singular_part = compute_singular_part_cached(tri_obs_idx, tri_obs, rwg_m, rwg_n, mesh, caches)
+        regular_part = compute_regular_part_cached(tri_obs_idx, tri_src_idx, tri_obs, tri_src, rwg_m, rwg_n, mesh, k, caches)
         return singular_part + regular_part
     else
         function integrand_singular(r)
@@ -373,8 +391,8 @@ function compute_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_o
             return vector_term + scalar_term
         end
 
-        singular_part = integrate_singular(integrand_singular, tri_obs, 7)
-        regular_part = integrate_regular(integrand_regular, tri_src, tri_obs, 5)
+        singular_part = integrate_singular(integrand_singular, tri_obs; quad_order=7)
+        regular_part = integrate_regular(integrand_regular, tri_src, tri_obs; quad_order=5)
 
         return singular_part + regular_part
     end
@@ -421,7 +439,7 @@ function compute_near_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, 
         # Precompute k^2 to avoid repeated division
         k_squared = k^2
         div_product = (div_m * div_n) / k_squared
-        
+
         @inbounds for i in eachindex(points_src)
             f_n = src_vals[i]
             wi = weights[i]
@@ -430,18 +448,18 @@ function compute_near_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, 
                 f_m = obs_vals[j]
                 wj = weights[j]
                 r_obs = points_obs[j]
-                
+
                 # Use fast inlined Green's function
-                g = green_3d_fast(r_obs, r_src, k)
-                
+                g = green_3d(r_obs, r_src, k)
+
                 # Use StaticArrays optimized dot product
                 dot_product = dot(f_m, f_n)
-                
+
                 # Combine terms efficiently
                 weight_jac = wi * wj * jacobian
                 vector_contrib = dot_product * g
                 scalar_contrib = (div_product * g)
-                
+
                 result += weight_jac * (vector_contrib + scalar_contrib)
             end
         end
@@ -511,8 +529,8 @@ function compute_excitation_element(rwg_m::RWGFunction, mesh::Mesh3D, incident_f
         return dot(f_m, e_inc)
     end
 
-    integral_plus = integrate_singular(integrand_plus, tri_plus, 3)
-    integral_minus = integrate_singular(integrand_minus, tri_minus, 3)
+    integral_plus = integrate_singular(integrand_plus, tri_plus; quad_order=3)
+    integral_minus = integrate_singular(integrand_minus, tri_minus; quad_order=3)
 
     return integral_plus + integral_minus
 end

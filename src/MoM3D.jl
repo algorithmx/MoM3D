@@ -20,6 +20,9 @@ using .Solvers
 using .PostProcess
 
 export Mesh3D, Triangle, Edge, RWGFunction
+export get_rwgs, evaluate_rwg, invalidate_rwg_cache!
+export find_edges, update_mesh!, find_opposite_vertex, find_opposite_vertex_index
+export recompute_edge_opposites!
 export green_3d, wavenumber
 export gauss_triangle, integrate_regular, integrate_singular
 export assemble_efie_matrix, compute_excitation_vector
