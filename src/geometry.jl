@@ -12,7 +12,13 @@ struct IntegrationCache
     order_index::Dict{Int,Int}
     gauss_rules::Vector{Tuple{Vector{SVector{2,Float64}},Vector{Float64}}}
     tri_cart_pts::Vector{Vector{Vector{SVector{3,Float64}}}}
-    tri_rwg_vals::Vector{Vector{Dict{Int,Vector{SVector{3,Float64}}}}}
+    tri_rwg_vals::Vector{Vector{Any}}  # filled with TriRWGVals per triangle per order
+end
+
+# Compact per-triangle RWG storage: lists of global RWG indices and aligned values
+struct TriRWGVals
+    rwg_indices::Vector{Int}
+    rwg_values::Vector{Vector{SVector{3,Float64}}}
 end
 
 struct Triangle

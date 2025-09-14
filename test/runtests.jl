@@ -13,6 +13,7 @@ println("=" ^ 40)
     include("test_green_functions.jl")
     include("test_integration.jl")
     include("test_integration_cache.jl")
+    include("test_get_rwg_vals.jl")
 end
 
 println("\nAll tests completed!")

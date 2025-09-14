@@ -15,7 +15,7 @@ function make_simple_mesh()
         SVector(0.0, 1.0, 0.0),
         SVector(1.0, 1.0, 0.0)
     ]
-    tris = [SVector(1,2,3), SVector(2,4,3)]
+    tris = [SVector(1, 2, 3), SVector(2, 4, 3)]
     return G.Mesh3D(verts, tris)
 end
 
@@ -47,7 +47,7 @@ end
         tri_rwg = caches.tri_rwg_vals[oi]
         for tid in 1:ntri
             pts = tri_cart[tid]
-            rwg_dict = tri_rwg[tid]
+            rwg_tri = tri_rwg[tid]
 
             # Every RWG adjacent to tid (via mesh edges) should have an entry
             # find adjacency via edges stored in mesh
@@ -61,8 +61,10 @@ end
             # If there are adjacent rwgs, ensure cache contains them and values match eval
             for rglobal in adjacent_rwgs
                 r = rwgs[rglobal]
-                @test haskey(rwg_dict, r.edge_index)
-                vals = rwg_dict[r.edge_index]
+                # look up index in compact TriRWGVals
+                ridx = findfirst(i -> i == r.edge_index, rwg_tri.rwg_indices)
+                @test ridx !== nothing
+                vals = rwg_tri.rwg_values[ridx]
                 @test length(vals) == length(pts)
                 for (i, p) in enumerate(pts)
                     direct = BF.evaluate_rwg(r, p, mesh)

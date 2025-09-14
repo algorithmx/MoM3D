@@ -50,12 +50,12 @@ function ensure_integration_caches(mesh::Mesh3D; orders=(3, 5, 7, 9))
         end
 
         tri_cart_pts_vec = Vector{Vector{Vector{SVector{3,Float64}}}}(undef, n_orders)
-        tri_rwg_vals_vec = Vector{Vector{Dict{Int,Vector{SVector{3,Float64}}}}}(undef, n_orders)
+        tri_rwg_vals_vec = Vector{Vector{Geometry.TriRWGVals}}(undef, n_orders)
 
         for (oi, ord) in enumerate(order_list)
             bary_pts, weights = gauss_rules_vec[oi]
             cart_pts_per_tri = Vector{Vector{SVector{3,Float64}}}(undef, n_tri)
-            rwgvals_per_tri = Vector{Dict{Int,Vector{SVector{3,Float64}}}}(undef, n_tri)
+            rwgvals_per_tri = Vector{Geometry.TriRWGVals}(undef, n_tri)
 
             Threads.@threads for tid in 1:n_tri
                 tri = mesh.triangles[tid]
@@ -65,28 +65,71 @@ function ensure_integration_caches(mesh::Mesh3D; orders=(3, 5, 7, 9))
                 end
                 cart_pts_per_tri[tid] = cps
 
-                dict = Dict{Int,Vector{SVector{3,Float64}}}()
-                for rwg_idx in triangle_rwgs[tid]
+                # Compact representation: arrays of indices + aligned values
+                inds = triangle_rwgs[tid]
+                vals_list = Vector{Vector{SVector{3,Float64}}}(undef, length(inds))
+                for (ii, rwg_idx) in enumerate(inds)
                     vals = Vector{SVector{3,Float64}}(undef, length(cps))
                     for (j, pt) in enumerate(cps)
                         vals[j] = evaluate_rwg(rwgs[rwg_idx], pt, mesh)
                     end
-                    dict[rwg_idx] = vals
+                    vals_list[ii] = vals
                 end
-                rwgvals_per_tri[tid] = dict
+                rwgvals_per_tri[tid] = Geometry.TriRWGVals(copy(inds), vals_list)
             end
 
             tri_cart_pts_vec[oi] = cart_pts_per_tri
             tri_rwg_vals_vec[oi] = rwgvals_per_tri
         end
 
-    caches = Geometry.IntegrationCache(order_list, order_index, gauss_rules_vec, tri_cart_pts_vec, tri_rwg_vals_vec)
+        caches = Geometry.IntegrationCache(order_list, order_index, gauss_rules_vec, tri_cart_pts_vec, tri_rwg_vals_vec)
 
         mesh.integration_cache = caches
         return caches
     finally
         unlock(INTEGRATION_CACHE_LOCK)
     end
+end
+
+@inline function get_rwg_vals(tri_vals::Geometry.TriRWGVals, edge_index::Int)
+    # fast-paths for very common sizes (0..3) to avoid loop overhead
+    inds = tri_vals.rwg_indices
+    len = length(inds)
+    if len == 0
+        return nothing
+    elseif len == 1
+        if inds[1] == edge_index
+            return tri_vals.rwg_values[1]
+        else
+            return nothing
+        end
+    elseif len == 2
+        if inds[1] == edge_index
+            return tri_vals.rwg_values[1]
+        elseif inds[2] == edge_index
+            return tri_vals.rwg_values[2]
+        else
+            return nothing
+        end
+    elseif len == 3
+        if inds[1] == edge_index
+            return tri_vals.rwg_values[1]
+        elseif inds[2] == edge_index
+            return tri_vals.rwg_values[2]
+        elseif inds[3] == edge_index
+            return tri_vals.rwg_values[3]
+        else
+            return nothing
+        end
+    end
+
+    # fallback: small linear search for uncommon larger adjacency
+    for (i, gl) in enumerate(inds)
+        if gl == edge_index
+            return tri_vals.rwg_values[i]
+        end
+    end
+    return nothing
 end
 
 function assemble_efie_matrix(mesh::Mesh3D, frequency::Float64; progress::Bool=false, parallel::Bool=false, chunk_size::Int=0)
@@ -222,11 +265,11 @@ function compute_regular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_ob
         div_m = evaluate_rwg_divergence(rwg_m)
         div_n = evaluate_rwg_divergence(rwg_n)
 
-        src_rwg_dict = tri_rwg[tri_src_idx]
-        obs_rwg_dict = tri_rwg[tri_obs_idx]
+        src_tri_vals = tri_rwg[tri_src_idx]
+        obs_tri_vals = tri_rwg[tri_obs_idx]
 
-        src_vals = haskey(src_rwg_dict, rwg_n.edge_index) ? src_rwg_dict[rwg_n.edge_index] : nothing
-        obs_vals = haskey(obs_rwg_dict, rwg_m.edge_index) ? obs_rwg_dict[rwg_m.edge_index] : nothing
+        src_vals = get_rwg_vals(src_tri_vals, rwg_n.edge_index)
+        obs_vals = get_rwg_vals(obs_tri_vals, rwg_m.edge_index)
 
         # If either side is not cached, precompute the missing side once
         if src_vals === nothing
@@ -301,9 +344,9 @@ function compute_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_o
             oi_s = caches.order_index[ord_sing]
             obs_pts = caches.tri_cart_pts[oi_s][tri_obs_idx]
 
-            sing_rwg_dict = caches.tri_rwg_vals[oi_s][tri_obs_idx]
-            sing_m_vals = haskey(sing_rwg_dict, rwg_m.edge_index) ? sing_rwg_dict[rwg_m.edge_index] : nothing
-            sing_n_vals = haskey(sing_rwg_dict, rwg_n.edge_index) ? sing_rwg_dict[rwg_n.edge_index] : nothing
+            sing_tri_vals = caches.tri_rwg_vals[oi_s][tri_obs_idx]
+            sing_m_vals = get_rwg_vals(sing_tri_vals, rwg_m.edge_index)
+            sing_n_vals = get_rwg_vals(sing_tri_vals, rwg_n.edge_index)
 
             if sing_m_vals === nothing || sing_n_vals === nothing
                 sing_m_vals = Vector{SVector{3,Float64}}(undef, length(obs_pts))
@@ -339,11 +382,11 @@ function compute_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_o
             div_m = evaluate_rwg_divergence(rwg_m)
             div_n = evaluate_rwg_divergence(rwg_n)
 
-            src_dict_reg = tri_rwg_reg[tri_src_idx]
-            obs_dict_reg = tri_rwg_reg[tri_obs_idx]
+            src_tri_vals_reg = tri_rwg_reg[tri_src_idx]
+            obs_tri_vals_reg = tri_rwg_reg[tri_obs_idx]
 
-            src_vals_reg = haskey(src_dict_reg, rwg_n.edge_index) ? src_dict_reg[rwg_n.edge_index] : nothing
-            obs_vals_reg = haskey(obs_dict_reg, rwg_m.edge_index) ? obs_dict_reg[rwg_m.edge_index] : nothing
+            src_vals_reg = get_rwg_vals(src_tri_vals_reg, rwg_n.edge_index)
+            obs_vals_reg = get_rwg_vals(obs_tri_vals_reg, rwg_m.edge_index)
 
             if src_vals_reg === nothing
                 src_vals_reg = Vector{SVector{3,Float64}}(undef, length(reg_src_pts))
@@ -426,11 +469,11 @@ function compute_near_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, 
         div_m = evaluate_rwg_divergence(rwg_m)
         div_n = evaluate_rwg_divergence(rwg_n)
 
-        src_dict = tri_rwg[tri_src_idx]
-        obs_dict = tri_rwg[tri_obs_idx]
+        src_tri_vals = tri_rwg[tri_src_idx]
+        obs_tri_vals = tri_rwg[tri_obs_idx]
 
-        src_vals = haskey(src_dict, rwg_n.edge_index) ? src_dict[rwg_n.edge_index] : nothing
-        obs_vals = haskey(obs_dict, rwg_m.edge_index) ? obs_dict[rwg_m.edge_index] : nothing
+        src_vals = get_rwg_vals(src_tri_vals, rwg_n.edge_index)
+        obs_vals = get_rwg_vals(obs_tri_vals, rwg_m.edge_index)
 
         # Precompute missing RWG evaluations
         if src_vals === nothing
