@@ -13,16 +13,17 @@ struct RWGFunction
     edge_length::Float64
     area_plus::Float64
     area_minus::Float64
+    divergence::Float64
 
-    function RWGFunction(edge::Edge, mesh::Mesh3D)
-        # Determine the index of this edge within the mesh.edges array
-        edge_idx = findfirst(e -> (e.vertex1 == edge.vertex1 && e.vertex2 == edge.vertex2 && e.triangle_plus == edge.triangle_plus && e.triangle_minus == edge.triangle_minus), mesh.edges)
-        if edge_idx === nothing
-            error("Edge not found in mesh when constructing RWGFunction")
-        end
+    function RWGFunction(edge_index::Int, mesh::Mesh3D)
+        edge = mesh.edges[edge_index]
         tri_plus = mesh.triangles[edge.triangle_plus]
         tri_minus = mesh.triangles[edge.triangle_minus]
-        new(edge_idx, edge.triangle_plus, edge.triangle_minus, edge.length, tri_plus.area, tri_minus.area)
+        edge_len = edge.length
+        area_p = tri_plus.area
+        area_m = tri_minus.area
+        div = (edge_len / area_p) + (edge_len / area_m)
+        new(edge_index, edge.triangle_plus, edge.triangle_minus, edge_len, area_p, area_m, div)
     end
 end
 
@@ -48,7 +49,8 @@ function get_rwgs(mesh::Mesh3D)
     n_edges = mesh.num_edges
     rwgs = Vector{RWGFunction}(undef, n_edges)
     for i in 1:n_edges
-        rwgs[i] = RWGFunction(mesh.edges[i], mesh)
+        # Construct RWGFunction with the known edge index to avoid an O(n) findfirst
+        rwgs[i] = RWGFunction(i, mesh)
     end
 
     mesh.rwg_cache = rwgs
@@ -90,7 +92,7 @@ end
 
 
 function evaluate_rwg_divergence(rwg::RWGFunction)
-    return rwg.edge_length / rwg.area_plus + rwg.edge_length / rwg.area_minus
+    return rwg.divergence
 end
 
 end

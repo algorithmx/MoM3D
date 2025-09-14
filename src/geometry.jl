@@ -6,6 +6,15 @@ using GeometryBasics
 
 export Triangle, Edge, Mesh3D, find_edges, update_mesh!, validate_mesh, analyze_mesh_quality, detect_t_junctions, repair_mesh_connectivity, compute_aspect_ratio, compute_min_angle, compute_max_angle, point_in_triangle, find_opposite_vertex, find_opposite_vertex_index, recompute_edge_opposites!
 
+# Typed integration cache used by IntegralEquations to store precomputed quadrature points and RWG values
+struct IntegrationCache
+    orders::Vector{Int}
+    order_index::Dict{Int,Int}
+    gauss_rules::Vector{Tuple{Vector{SVector{2,Float64}},Vector{Float64}}}
+    tri_cart_pts::Vector{Vector{Vector{SVector{3,Float64}}}}
+    tri_rwg_vals::Vector{Vector{Dict{Int,Vector{SVector{3,Float64}}}}}
+end
+
 struct Triangle
     vertices::SVector{3,SVector{3,Float64}}
     area::Float64
@@ -77,7 +86,7 @@ mutable struct Mesh3D
     is_watertight::Bool
     mesh_quality::NamedTuple
     rwg_cache::Union{Nothing,Vector{Any}}
-    integration_cache::Union{Nothing,Dict{Symbol,Any}}
+    integration_cache::Union{Nothing,IntegrationCache}
 
     function Mesh3D(vertices::Vector{SVector{3,Float64}}, triangle_indices::Vector{SVector{3,Int}})
         triangles = [Triangle(vertices[idx[1]], vertices[idx[2]], vertices[idx[3]])

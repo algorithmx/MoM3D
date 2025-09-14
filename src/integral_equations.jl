@@ -14,6 +14,8 @@ export compute_excitation_vector
 # Module-level lock for safely building/storing per-mesh integration caches
 const INTEGRATION_CACHE_LOCK = ReentrantLock()
 
+# IntegrationCache type is defined in Geometry and used here
+
 # Helper: build or return integration caches (thread-safe)
 function ensure_integration_caches(mesh::Mesh3D; orders=(3, 5, 7, 9))
     if mesh.integration_cache !== nothing
@@ -26,9 +28,17 @@ function ensure_integration_caches(mesh::Mesh3D; orders=(3, 5, 7, 9))
             return mesh.integration_cache
         end
 
-        gauss_rules = Dict{Int,Tuple{Vector{SVector{2,Float64}},Vector{Float64}}}()
-        for ord in orders
-            gauss_rules[ord] = gauss_triangle(ord)
+        # Normalize orders input and build small index map (orders are small, fixed set)
+        order_list = collect(orders)
+        n_orders = length(order_list)
+        order_index = Dict{Int,Int}()
+        for (i, ord) in enumerate(order_list)
+            order_index[ord] = i
+        end
+
+        gauss_rules_vec = Vector{Tuple{Vector{SVector{2,Float64}},Vector{Float64}}}(undef, n_orders)
+        for (i, ord) in enumerate(order_list)
+            gauss_rules_vec[i] = gauss_triangle(ord)
         end
 
         n_tri = length(mesh.triangles)
@@ -39,11 +49,11 @@ function ensure_integration_caches(mesh::Mesh3D; orders=(3, 5, 7, 9))
             push!(triangle_rwgs[rwg.triangle_minus], i)
         end
 
-        tri_cart_pts = Dict{Int,Vector{Vector{SVector{3,Float64}}}}()
-        tri_rwg_vals = Dict{Int,Vector{Dict{Int,Vector{SVector{3,Float64}}}}}()
+        tri_cart_pts_vec = Vector{Vector{Vector{SVector{3,Float64}}}}(undef, n_orders)
+        tri_rwg_vals_vec = Vector{Vector{Dict{Int,Vector{SVector{3,Float64}}}}}(undef, n_orders)
 
-        for ord in orders
-            bary_pts, weights = gauss_rules[ord]
+        for (oi, ord) in enumerate(order_list)
+            bary_pts, weights = gauss_rules_vec[oi]
             cart_pts_per_tri = Vector{Vector{SVector{3,Float64}}}(undef, n_tri)
             rwgvals_per_tri = Vector{Dict{Int,Vector{SVector{3,Float64}}}}(undef, n_tri)
 
@@ -66,15 +76,11 @@ function ensure_integration_caches(mesh::Mesh3D; orders=(3, 5, 7, 9))
                 rwgvals_per_tri[tid] = dict
             end
 
-            tri_cart_pts[ord] = cart_pts_per_tri
-            tri_rwg_vals[ord] = rwgvals_per_tri
+            tri_cart_pts_vec[oi] = cart_pts_per_tri
+            tri_rwg_vals_vec[oi] = rwgvals_per_tri
         end
 
-        caches = Dict{Symbol,Any}(
-            :gauss_rules => gauss_rules,
-            :tri_cart_pts => tri_cart_pts,
-            :tri_rwg_vals => tri_rwg_vals
-        )
+    caches = Geometry.IntegrationCache(order_list, order_index, gauss_rules_vec, tri_cart_pts_vec, tri_rwg_vals_vec)
 
         mesh.integration_cache = caches
         return caches
@@ -201,15 +207,16 @@ function compute_regular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_ob
     rwg_m::RWGFunction, rwg_n::RWGFunction, mesh::Mesh3D, k::Float64; caches=nothing)
 
     quad_order = 3
-    if caches !== nothing && haskey(caches, :tri_cart_pts) && haskey(caches, :tri_rwg_vals)
+    if caches !== nothing
         # Use precomputed points and RWG values when available
-        tri_cart = caches[:tri_cart_pts][quad_order][tri_src_idx]
-        obs_cart = caches[:tri_cart_pts][quad_order][tri_obs_idx]
-        tri_rwg = caches[:tri_rwg_vals][quad_order]
+        oi = caches.order_index[quad_order]
+        tri_cart = caches.tri_cart_pts[oi][tri_src_idx]
+        obs_cart = caches.tri_cart_pts[oi][tri_obs_idx]
+        tri_rwg = caches.tri_rwg_vals[oi]
 
         result = complex(0.0)
         jacobian = tri_src.area * tri_obs.area
-        weights = caches[:gauss_rules][quad_order][2]
+        weights = caches.gauss_rules[oi][2]
 
         # Hoist constant/divergence evaluations and cache lookups out of inner loops
         div_m = evaluate_rwg_divergence(rwg_m)
@@ -287,13 +294,14 @@ function compute_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_o
 
     # Use order 7 for singular extraction and 5 for the regular remainder
     # If caches available, reuse precomputed cartesian points and RWG vals.
-    if caches !== nothing && haskey(caches, :tri_cart_pts)
+    if caches !== nothing
         # Cached singular-part: barycentric on observation triangle
         function compute_singular_part_cached(tri_obs_idx, tri_obs, rwg_m, rwg_n, mesh, caches)
             ord_sing = 7
-            obs_pts = caches[:tri_cart_pts][ord_sing][tri_obs_idx]
+            oi_s = caches.order_index[ord_sing]
+            obs_pts = caches.tri_cart_pts[oi_s][tri_obs_idx]
 
-            sing_rwg_dict = caches[:tri_rwg_vals][ord_sing][tri_obs_idx]
+            sing_rwg_dict = caches.tri_rwg_vals[oi_s][tri_obs_idx]
             sing_m_vals = haskey(sing_rwg_dict, rwg_m.edge_index) ? sing_rwg_dict[rwg_m.edge_index] : nothing
             sing_n_vals = haskey(sing_rwg_dict, rwg_n.edge_index) ? sing_rwg_dict[rwg_n.edge_index] : nothing
 
@@ -307,7 +315,7 @@ function compute_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_o
             end
 
             area_over_4pi = tri_obs.area / FOUR_PI
-            weights_sing = caches[:gauss_rules][ord_sing][2]
+            weights_sing = caches.gauss_rules[oi_s][2]
 
             singular_part = complex(0.0)
             for i in eachindex(obs_pts)
@@ -320,12 +328,13 @@ function compute_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, tri_o
 
         function compute_regular_part_cached(tri_obs_idx, tri_src_idx, tri_obs, tri_src, rwg_m, rwg_n, mesh, k, caches)
             ord_reg = 5
-            reg_obs_pts = caches[:tri_cart_pts][ord_reg][tri_obs_idx]
-            reg_src_pts = caches[:tri_cart_pts][ord_reg][tri_src_idx]
+            oi_r = caches.order_index[ord_reg]
+            reg_obs_pts = caches.tri_cart_pts[oi_r][tri_obs_idx]
+            reg_src_pts = caches.tri_cart_pts[oi_r][tri_src_idx]
 
             jacobian = tri_src.area * tri_obs.area
-            weights = caches[:gauss_rules][ord_reg][2]
-            tri_rwg_reg = caches[:tri_rwg_vals][ord_reg]
+            weights = caches.gauss_rules[oi_r][2]
+            tri_rwg_reg = caches.tri_rwg_vals[oi_r]
 
             div_m = evaluate_rwg_divergence(rwg_m)
             div_n = evaluate_rwg_divergence(rwg_n)
@@ -402,12 +411,13 @@ function compute_near_singular_efie_element(tri_obs_idx::Int, tri_src_idx::Int, 
     rwg_m::RWGFunction, rwg_n::RWGFunction, mesh::Mesh3D, k::Float64; caches=nothing)
 
     quad_order = 9
-    if caches !== nothing && haskey(caches, :tri_cart_pts)
+    if caches !== nothing
         # Try high-order product Gauss using precomputed points
-        points_obs = caches[:tri_cart_pts][quad_order][tri_obs_idx]
-        points_src = caches[:tri_cart_pts][quad_order][tri_src_idx]
-        weights = caches[:gauss_rules][quad_order][2]
-        tri_rwg = caches[:tri_rwg_vals][quad_order]
+        oi_q = caches.order_index[quad_order]
+        points_obs = caches.tri_cart_pts[oi_q][tri_obs_idx]
+        points_src = caches.tri_cart_pts[oi_q][tri_src_idx]
+        weights = caches.gauss_rules[oi_q][2]
+        tri_rwg = caches.tri_rwg_vals[oi_q]
         jacobian = tri_src.area * tri_obs.area
 
         result = complex(0.0)
